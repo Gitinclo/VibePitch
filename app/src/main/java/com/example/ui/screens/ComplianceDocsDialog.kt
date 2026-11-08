@@ -113,9 +113,26 @@ enum class ComplianceDocTab(
         fileName = "ROADMAP.md",
         summaryTitle = "Q4 2026, 2027 & Long-Term Product Roadmap",
         content = """
-            • Short-Term (Q4 2026): 7-vertical catalog, 6-script generator, 30-day guest-to-cloud lifecycle, zero-trust Firestore rules, and 8-doc compliance suite.
+            • Short-Term (Q4 2026): 7-vertical catalog, 6-script generator, 30-day guest-to-cloud lifecycle, zero-trust Firestore rules, and 9-doc compliance & guardrail suite.
             • Mid-Term (2027): Branded PDF proposal export with QR payment links, multi-currency presets (USD/EUR/GBP/INR/BRL), offline sync queue, and custom vertical builder.
             • Long-Term (2028+): Multi-seat agency workspaces and shareable client micro-preview links.
+        """.trimIndent()
+    ),
+    GUARDRAILS(
+        label = "100 GUARDRAILS",
+        fileName = "GUARDRAILS.md",
+        summaryTitle = "100 Vibe Coding Agent Guardrails (Categories I–X)",
+        content = """
+            • I. Code Preservation & Anti-Regression (1–10): No unrequested refactoring, ban lazy placeholders, surgical edits, backward-compatible signatures, read before write.
+            • II. Architecture & Modularity (11–20): 300–400 line hard file limit, single responsibility, strict layer boundaries, centralized constants, pure helpers.
+            • III. Dependencies & Env (21–30): Zero hallucinated packages, check native APIs first, lockfile integrity, boot env validation (FirebaseEnvValidator), .env.example sync.
+            • IV. Type Safety & Contracts (31–40): Strict Any ban, shared client-server schemas, discriminated UiState unions, immutable state, runtime boundary validation.
+            • V. Security, Secrets & Auth (41–50): Zero hardcoded secrets, server-side Firestore auth enforcement, Stripe/Forms offloading, IDOR ownership checks.
+            • VI. Frontend, UI/UX & State (51–60): Mandatory Loading/Empty/Error states, cleanup side effects, offline fallback, disable in-flight submit, responsive 48dp touch targets.
+            • VII. Backend & DB Safety (61–70): Idempotent guest migration, query/field limits, shared StateFlow listeners, explicit timeouts, CancellationException safety.
+            • VIII. Error Handling & Observability (71–80): Ban empty catch blocks, contextual error wrapping, zero PII in logs, live StorageSyncStatusDotChip offline indicator.
+            • IX. Terminal & Execution Limits (81–90): Ban destructive shell commands, scoped directory access, non-interactive CLI flags, emulator validation before deploy.
+            • X. Self-Verification & Loop Prevention (91–100): 3-strike loop breaker, mandatory compile & test gate, fix root causes, no fake passing tests, explicit assumptions.
         """.trimIndent()
     )
 }

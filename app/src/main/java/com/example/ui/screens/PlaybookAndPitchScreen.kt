@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,14 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,7 +32,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -52,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -64,7 +55,6 @@ import com.example.ui.GeneratedPitchScripts
 import com.example.ui.OfferArchetype
 import com.example.ui.ScopeGuardrailConfig
 import com.example.ui.UiState
-import com.example.ui.theme.EmeraldConversion
 import com.example.ui.theme.parseBrandColor
 
 @Composable
@@ -84,7 +74,6 @@ fun PlaybookAndPitchScreen(
 ) {
     val context = LocalContext.current
     val brandAccent = parseBrandColor(activeBrand.brandColorHex)
-    // 0 = IG/FB DM, 1 = Upwork/Rescue, 2 = Email, 3 = 90s Loom, 4 = Scope & Guardrails, 5 = Testimonial & Referrals
     var selectedScriptTab by remember { mutableIntStateOf(0) }
 
     val qaRemediationChecks = remember {
@@ -100,8 +89,6 @@ fun PlaybookAndPitchScreen(
             "Commercial Loop Closed: Delivered fast & sent the 2-sentence Testimonial + Local Referral request"
         )
     }
-    val qaPassedCount = qaRemediationChecks.count { it }
-    val qaReadinessProgress = qaPassedCount.toFloat() / qaRemediationItems.size.toFloat()
 
     val tasks = (playbookState as? UiState.Success)?.data ?: emptyList()
     val completedCount = tasks.count { it.isCompleted }
@@ -129,7 +116,6 @@ fun PlaybookAndPitchScreen(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Section 1: Multi-Stream Outreach, Proposal & Testimonial Drafter
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -161,7 +147,6 @@ fun PlaybookAndPitchScreen(
                         }
                     }
 
-                    // 1. Revenue Stream Selector
                     Text(
                         text = "1. Target Revenue Stream:",
                         style = MaterialTheme.typography.labelLarge,
@@ -183,7 +168,6 @@ fun PlaybookAndPitchScreen(
                         }
                     }
 
-                    // 2. Offer Archetype Selector
                     Text(
                         text = "2. Deliverable Outcome (Clients pay for utility, not code):",
                         style = MaterialTheme.typography.labelLarge,
@@ -205,7 +189,6 @@ fun PlaybookAndPitchScreen(
                         }
                     }
 
-                    // 3. Fixed Starter Price ($100 to $500)
                     Text(
                         text = "3. Fixed Starter Rate ($100–$500):",
                         style = MaterialTheme.typography.labelLarge,
@@ -229,7 +212,6 @@ fun PlaybookAndPitchScreen(
 
                     HorizontalDivider()
 
-                    // 6 Script Channel Tabs
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -341,279 +323,28 @@ fun PlaybookAndPitchScreen(
                 }
             }
 
-            // Section 2: Plain-English Scope & Security Guardrail Builder
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = EmeraldConversion
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "Plain-English Scope & Security Guardrails",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Configure trusted providers & maintenance terms (updates Scope & Proposal tabs live):",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+            ScopeGuardrailBuilderCard(
+                scopeGuardrails = scopeGuardrails,
+                onUpdateScopeGuardrails = onUpdateScopeGuardrails
+            )
 
-                    Text(
-                        text = "Payment Handling (Never write custom card processing):",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(
-                            "Stripe Payment Links / Native Checkout",
-                            "Calendly / Square Paid Booking Link",
-                            "Shopify Native Checkout"
-                        ).forEach { option ->
-                            FilterChip(
-                                selected = scopeGuardrails.paymentGuardrail == option,
-                                onClick = {
-                                    onUpdateScopeGuardrails(
-                                        option,
-                                        scopeGuardrails.dataPrivacyGuardrail,
-                                        scopeGuardrails.authGuardrail,
-                                        scopeGuardrails.supportWindowDays
-                                    )
-                                },
-                                label = { Text(option) }
-                            )
-                        }
-                    }
+            VibeGuardrailsExplorerCard(
+                brandAccent = brandAccent,
+                onShowMessage = onShowMessage
+            )
 
-                    Text(
-                        text = "Personal Data & Intake Boundary:",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(
-                            "Google Forms / Zero-Trust Cloud Rules",
-                            "Direct SMS / Email Forward (Zero DB PII)",
-                            "Airtable / Google Sheets Webhook"
-                        ).forEach { option ->
-                            FilterChip(
-                                selected = scopeGuardrails.dataPrivacyGuardrail == option,
-                                onClick = {
-                                    onUpdateScopeGuardrails(
-                                        scopeGuardrails.paymentGuardrail,
-                                        option,
-                                        scopeGuardrails.authGuardrail,
-                                        scopeGuardrails.supportWindowDays
-                                    )
-                                },
-                                label = { Text(option) }
-                            )
-                        }
-                    }
+            ViewportQaAuditorCard(
+                qaRemediationItems = qaRemediationItems,
+                qaRemediationChecks = qaRemediationChecks
+            )
 
-                    Text(
-                        text = "Post-Delivery Bug Fix & Handover Window:",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(7, 14, 30).forEach { days ->
-                            FilterChip(
-                                selected = scopeGuardrails.supportWindowDays == days,
-                                onClick = {
-                                    onUpdateScopeGuardrails(
-                                        scopeGuardrails.paymentGuardrail,
-                                        scopeGuardrails.dataPrivacyGuardrail,
-                                        scopeGuardrails.authGuardrail,
-                                        days
-                                    )
-                                },
-                                label = { Text("$days Days Free Fixes") }
-                            )
-                        }
-                    }
-                }
-            }
+            PlaybookProgressHeaderCard(
+                brandAccent = brandAccent,
+                completedCount = completedCount,
+                totalTasks = tasks.size,
+                progress = progress
+            )
 
-            // Section 3: Build, Viewport QA & AI Prototype Remediation Auditor
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = null,
-                                tint = EmeraldConversion
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "Viewport QA & AI Prototype Auditor",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "$qaPassedCount of ${qaRemediationItems.size} production & security gates verified",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Surface(
-                            color = EmeraldConversion.copy(alpha = 0.18f),
-                            shape = RoundedCornerShape(50)
-                        ) {
-                            Text(
-                                text = "${(qaReadinessProgress * 100).toInt()}% Ready",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = EmeraldConversion,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    LinearProgressIndicator(
-                        progress = { qaReadinessProgress },
-                        color = EmeraldConversion,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(50))
-                    )
-
-                    qaRemediationItems.forEachIndexed { index, itemText ->
-                        val checked = qaRemediationChecks[index]
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { qaRemediationChecks[index] = !checked }
-                                .padding(vertical = 6.dp, horizontal = 4.dp)
-                                .testTag("preship_check_$index"),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Icon(
-                                imageVector = if (checked) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = if (checked) "Verified" else "Mark verified",
-                                tint = if (checked) EmeraldConversion else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = itemText,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Section 4: 14-Day Execution Progress Card
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Build,
-                                contentDescription = null,
-                                tint = brandAccent
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "14-Day Client Acquisition Protocol",
-                                    style = MaterialTheme.typography.titleLarge
-                                )
-                                Text(
-                                    text = "$completedCount of ${tasks.size} milestones completed",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Surface(
-                            color = EmeraldConversion.copy(alpha = 0.16f),
-                            shape = RoundedCornerShape(50)
-                        ) {
-                            Text(
-                                text = "${(progress * 100).toInt()}%",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = EmeraldConversion,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        color = EmeraldConversion,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(50))
-                    )
-                }
-            }
-
-            // Checklist Items
             tasks.forEach { task ->
                 PlaybookTaskCard(
                     task = task,
@@ -621,137 +352,11 @@ fun PlaybookAndPitchScreen(
                 )
             }
 
-            // Section 5: Global Compliance, Security & Governance Hub
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            tint = EmeraldConversion
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "Docs & Global Compliance Suite",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Browse README, SECURITY, PRIVACY (150+ countries), TERMS, ACCOUNT, CONTRIBUTING, CODE OF CONDUCT & ROADMAP",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = onOpenComplianceDocs,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("playbook_open_compliance_docs_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Shield,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Open Docs & Compliance Hub")
-                    }
-                }
-            }
+            ComplianceSuiteEntryCard(
+                onOpenComplianceDocs = onOpenComplianceDocs
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun PlaybookTaskCard(
-    task: PlaybookTask,
-    onToggle: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .testTag("playbook_task_${task.id}")
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                imageVector = if (task.isCompleted) {
-                    Icons.Default.CheckCircle
-                } else {
-                    Icons.Default.RadioButtonUnchecked
-                },
-                contentDescription = if (task.isCompleted) "Completed" else "Mark completed",
-                tint = if (task.isCompleted) EmeraldConversion else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Text(
-                            text = "STEP ${task.stepNumber} • ${task.dayRange.uppercase()}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = task.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (task.proTip.isNotBlank()) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Lightbulb,
-                            contentDescription = null,
-                            tint = EmeraldConversion,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = task.proTip,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = EmeraldConversion
-                        )
-                    }
-                }
-            }
         }
     }
 }

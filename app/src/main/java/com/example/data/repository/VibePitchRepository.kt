@@ -1,12 +1,12 @@
 package com.example.data.repository
 
 import android.content.Context
-import com.example.R
 import com.example.data.model.BusinessAccountProfile
 import com.example.data.model.CapturedLead
 import com.example.data.model.NicheCatalog
 import com.example.data.model.PlaybookTask
 import com.example.data.model.ProspectProfile
+import com.example.data.remote.FirebaseEnvValidator
 import com.example.data.remote.OperationType
 import com.example.data.remote.handleFirestoreError
 import com.example.domain.InputBoundsValidator
@@ -26,25 +26,42 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
-class VibePitchRepository(private val db: FirebaseFirestore) {
+class VibePitchRepository(private val db: FirebaseFirestore? = null) {
 
     constructor(context: Context) : this(
-        FirebaseFirestore.getInstance(
-            context.applicationContext.getString(R.string.firestore_database_id)
-        )
+        FirebaseEnvValidator.getFirestoreOrNull(context.applicationContext)
     )
 
-    private val auth = Firebase.auth
-
-    private fun requireUserId(): String {
-        return auth.currentUser?.uid
-            ?: throw IllegalStateException("User must be signed in with Google before accessing Firestore.")
+    private fun currentAuthUidOrNull(): String? = try {
+        Firebase.auth.currentUser?.uid?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
     }
 
-    fun observeBusinessProfile(userId: String = requireUserId()): Flow<BusinessAccountProfile?> = flow {
-        val path = "users/$userId/businessProfile/profile"
+    private fun resolveUserIdOrNull(explicitUserId: String? = null): String? {
+        return currentAuthUidOrNull() ?: explicitUserId?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun requireActiveUserId(explicitUserId: String? = null): String {
+        return resolveUserIdOrNull(explicitUserId)
+            ?: throw IllegalStateException("Authenticated user session is required before writing to Cloud Firestore.")
+    }
+
+    private fun requireFirestore(): FirebaseFirestore {
+        return db
+            ?: throw IllegalStateException("Cloud Firestore is not initialized in this environment.")
+    }
+
+    fun observeBusinessProfile(userId: String = ""): Flow<BusinessAccountProfile?> = flow {
+        val firestore = db
+        val resolvedUid = resolveUserIdOrNull(userId)
+        if (firestore == null || resolvedUid == null) {
+            emit(null)
+            return@flow
+        }
+        val path = "users/$resolvedUid/businessProfile/profile"
         emitAll(
-            db.collection("users").document(userId)
+            firestore.collection("users").document(resolvedUid)
                 .collection("businessProfile").document("profile")
                 .snapshots()
                 .map { snapshot ->
@@ -63,7 +80,7 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
                         .firstOrNull()
                     if (firestoreError == null && error is CancellationException) throw error
                     val exceptionToLog = firestoreError ?: (error as? Exception)
-                    if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                    if (exceptionToLog != null && currentAuthUidOrNull() == resolvedUid) {
                         handleFirestoreError(exceptionToLog, OperationType.GET, path)
                     }
                     throw error
@@ -72,8 +89,9 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun saveBusinessProfile(profile: BusinessAccountProfile): Result<Unit> = runCatching {
-        val uid = requireUserId()
-        val docRef = db.collection("users").document(uid)
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(profile.userId)
+        val docRef = firestore.collection("users").document(uid)
             .collection("businessProfile").document("profile")
         val existingSnap = try {
             docRef.get().await()
@@ -102,11 +120,17 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    fun observeProspects(userId: String = requireUserId()): Flow<List<ProspectProfile>> = flow {
-        val path = "users/$userId/prospects"
+    fun observeProspects(userId: String = ""): Flow<List<ProspectProfile>> = flow {
+        val firestore = db
+        val resolvedUid = resolveUserIdOrNull(userId)
+        if (firestore == null || resolvedUid == null) {
+            emit(emptyList())
+            return@flow
+        }
+        val path = "users/$resolvedUid/prospects"
         emitAll(
-            db.collection("users").document(userId).collection("prospects")
-                .whereEqualTo("userId", userId)
+            firestore.collection("users").document(resolvedUid).collection("prospects")
+                .whereEqualTo("userId", resolvedUid)
                 .snapshots()
                 .map { snapshot ->
                     snapshot.toObjects(
@@ -120,7 +144,7 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
                         .firstOrNull()
                     if (firestoreError == null && error is CancellationException) throw error
                     val exceptionToLog = firestoreError ?: (error as? Exception)
-                    if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                    if (exceptionToLog != null && currentAuthUidOrNull() == resolvedUid) {
                         handleFirestoreError(exceptionToLog, OperationType.LIST, path)
                     }
                     throw error
@@ -128,11 +152,17 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
         )
     }
 
-    fun observeLeads(userId: String = requireUserId()): Flow<List<CapturedLead>> = flow {
-        val path = "users/$userId/leads"
+    fun observeLeads(userId: String = ""): Flow<List<CapturedLead>> = flow {
+        val firestore = db
+        val resolvedUid = resolveUserIdOrNull(userId)
+        if (firestore == null || resolvedUid == null) {
+            emit(emptyList())
+            return@flow
+        }
+        val path = "users/$resolvedUid/leads"
         emitAll(
-            db.collection("users").document(userId).collection("leads")
-                .whereEqualTo("userId", userId)
+            firestore.collection("users").document(resolvedUid).collection("leads")
+                .whereEqualTo("userId", resolvedUid)
                 .snapshots()
                 .map { snapshot ->
                     snapshot.toObjects(
@@ -146,7 +176,7 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
                         .firstOrNull()
                     if (firestoreError == null && error is CancellationException) throw error
                     val exceptionToLog = firestoreError ?: (error as? Exception)
-                    if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                    if (exceptionToLog != null && currentAuthUidOrNull() == resolvedUid) {
                         handleFirestoreError(exceptionToLog, OperationType.LIST, path)
                     }
                     throw error
@@ -154,11 +184,17 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
         )
     }
 
-    fun observePlaybookTasks(userId: String = requireUserId()): Flow<List<PlaybookTask>> = flow {
-        val path = "users/$userId/playbook"
+    fun observePlaybookTasks(userId: String = ""): Flow<List<PlaybookTask>> = flow {
+        val firestore = db
+        val resolvedUid = resolveUserIdOrNull(userId)
+        if (firestore == null || resolvedUid == null) {
+            emit(emptyList())
+            return@flow
+        }
+        val path = "users/$resolvedUid/playbook"
         emitAll(
-            db.collection("users").document(userId).collection("playbook")
-                .whereEqualTo("userId", userId)
+            firestore.collection("users").document(resolvedUid).collection("playbook")
+                .whereEqualTo("userId", resolvedUid)
                 .snapshots()
                 .map { snapshot ->
                     snapshot.toObjects(
@@ -172,7 +208,7 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
                         .firstOrNull()
                     if (firestoreError == null && error is CancellationException) throw error
                     val exceptionToLog = firestoreError ?: (error as? Exception)
-                    if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                    if (exceptionToLog != null && currentAuthUidOrNull() == resolvedUid) {
                         handleFirestoreError(exceptionToLog, OperationType.LIST, path)
                     }
                     throw error
@@ -181,12 +217,13 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun createProspect(prospect: ProspectProfile): Result<String> = runCatching {
-        val uid = requireUserId()
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(prospect.userId)
         val sanitizedId = prospect.id.replace(Regex("[^a-zA-Z0-9_\\-]"), "")
         val docRef = if (sanitizedId.isNotBlank()) {
-            db.collection("users").document(uid).collection("prospects").document(sanitizedId)
+            firestore.collection("users").document(uid).collection("prospects").document(sanitizedId)
         } else {
-            db.collection("users").document(uid).collection("prospects").document()
+            firestore.collection("users").document(uid).collection("prospects").document()
         }
         val payload = mapOf(
             "userId" to uid,
@@ -215,7 +252,8 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun getProspectById(targetUserId: String, prospectId: String): Result<ProspectProfile?> = runCatching {
-        val docRef = db.collection("users").document(targetUserId)
+        val firestore = requireFirestore()
+        val docRef = firestore.collection("users").document(targetUserId)
             .collection("prospects").document(prospectId)
         try {
             val snap = docRef.get().await()
@@ -229,9 +267,10 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun updateProspect(prospect: ProspectProfile): Result<Unit> = runCatching {
-        val uid = requireUserId()
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(prospect.userId)
         require(prospect.id.isNotBlank()) { "Prospect ID must not be blank for update" }
-        val docRef = db.collection("users").document(uid).collection("prospects").document(prospect.id)
+        val docRef = firestore.collection("users").document(uid).collection("prospects").document(prospect.id)
         val updates = mapOf(
             "businessName" to InputBoundsValidator.sanitizeBusinessName(prospect.businessName),
             "contactName" to InputBoundsValidator.sanitizeContactName(prospect.contactName),
@@ -255,9 +294,10 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    suspend fun deleteProspect(prospectId: String): Result<Unit> = runCatching {
-        val uid = requireUserId()
-        val docRef = db.collection("users").document(uid).collection("prospects").document(prospectId)
+    suspend fun deleteProspect(prospectId: String, userId: String? = null): Result<Unit> = runCatching {
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(userId)
+        val docRef = firestore.collection("users").document(uid).collection("prospects").document(prospectId)
         try {
             docRef.delete().await()
         } catch (e: CancellationException) {
@@ -269,8 +309,9 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun submitLead(lead: CapturedLead): Result<String> = runCatching {
-        val uid = requireUserId()
-        val docRef = db.collection("users").document(uid).collection("leads").document()
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(lead.userId)
+        val docRef = firestore.collection("users").document(uid).collection("leads").document()
         val payload = mapOf(
             "userId" to uid,
             "prospectId" to lead.prospectId.take(128),
@@ -300,9 +341,10 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    suspend fun deleteLead(leadId: String): Result<Unit> = runCatching {
-        val uid = requireUserId()
-        val docRef = db.collection("users").document(uid).collection("leads").document(leadId)
+    suspend fun deleteLead(leadId: String, userId: String? = null): Result<Unit> = runCatching {
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(userId)
+        val docRef = firestore.collection("users").document(uid).collection("leads").document(leadId)
         try {
             docRef.delete().await()
         } catch (e: CancellationException) {
@@ -314,9 +356,10 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun togglePlaybookTask(task: PlaybookTask): Result<Unit> = runCatching {
-        val uid = requireUserId()
+        val firestore = requireFirestore()
+        val uid = requireActiveUserId(task.userId)
         require(task.id.isNotBlank()) { "Task ID must not be blank" }
-        val docRef = db.collection("users").document(uid).collection("playbook").document(task.id)
+        val docRef = firestore.collection("users").document(uid).collection("playbook").document(task.id)
         val updates = mapOf(
             "isCompleted" to !task.isCompleted,
             "updatedAt" to FieldValue.serverTimestamp()
@@ -332,26 +375,28 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
     }
 
     suspend fun migrateGuestDataToCloud(
-        userId: String = requireUserId(),
+        userId: String = "",
         profile: BusinessAccountProfile?,
         guestProspects: List<ProspectProfile>,
         guestLeads: List<CapturedLead>,
         guestPlaybook: List<PlaybookTask>
     ): Result<Unit> = runCatching {
+        val firestore = requireFirestore()
+        val resolvedUid = requireActiveUserId(userId.ifBlank { profile?.userId })
         if (profile != null) {
-            saveBusinessProfile(profile.copy(userId = userId, upgradedFromGuest = true)).getOrThrow()
+            saveBusinessProfile(profile.copy(userId = resolvedUid, upgradedFromGuest = true)).getOrThrow()
         }
         for (prospect in guestProspects) {
-            createProspect(prospect.copy(userId = userId)).getOrThrow()
+            createProspect(prospect.copy(userId = resolvedUid)).getOrThrow()
         }
         for (lead in guestLeads) {
-            submitLead(lead.copy(userId = userId)).getOrThrow()
+            submitLead(lead.copy(userId = resolvedUid)).getOrThrow()
         }
         for (task in guestPlaybook) {
             val sanitizedId = task.id.replace(Regex("[^a-zA-Z0-9_\\-]"), "").ifBlank { "task_1" }
-            val docRef = db.collection("users").document(userId).collection("playbook").document(sanitizedId)
+            val docRef = firestore.collection("users").document(resolvedUid).collection("playbook").document(sanitizedId)
             val payload = mapOf(
-                "userId" to userId,
+                "userId" to resolvedUid,
                 "dayRange" to task.dayRange.take(40),
                 "stepNumber" to task.stepNumber.coerceIn(1L, 20L),
                 "title" to task.title.take(140),
@@ -365,32 +410,34 @@ class VibePitchRepository(private val db: FirebaseFirestore) {
         }
     }
 
-    suspend fun seedStarterDataIfEmpty(userId: String = requireUserId()): Result<Unit> = runCatching {
-        val prospectsSnap = db.collection("users").document(userId).collection("prospects")
-            .whereEqualTo("userId", userId)
+    suspend fun seedStarterDataIfEmpty(userId: String = ""): Result<Unit> = runCatching {
+        val firestore = requireFirestore()
+        val resolvedUid = requireActiveUserId(userId)
+        val prospectsSnap = firestore.collection("users").document(resolvedUid).collection("prospects")
+            .whereEqualTo("userId", resolvedUid)
             .limit(1)
             .get()
             .await()
 
         if (prospectsSnap.isEmpty) {
-            val starterProspects = NicheCatalog.buildDefaultProspects(userId)
+            val starterProspects = NicheCatalog.buildDefaultProspects(resolvedUid)
             for (p in starterProspects) {
                 createProspect(p).getOrThrow()
             }
         }
 
-        val playbookSnap = db.collection("users").document(userId).collection("playbook")
-            .whereEqualTo("userId", userId)
+        val playbookSnap = firestore.collection("users").document(resolvedUid).collection("playbook")
+            .whereEqualTo("userId", resolvedUid)
             .limit(1)
             .get()
             .await()
 
         if (playbookSnap.isEmpty) {
-            val defaultTasks = NicheCatalog.buildDefaultPlaybookTasks(userId)
+            val defaultTasks = NicheCatalog.buildDefaultPlaybookTasks(resolvedUid)
             for (task in defaultTasks) {
-                val docRef = db.collection("users").document(userId).collection("playbook").document(task.id)
+                val docRef = firestore.collection("users").document(resolvedUid).collection("playbook").document(task.id)
                 val payload = mapOf(
-                    "userId" to userId,
+                    "userId" to resolvedUid,
                     "dayRange" to task.dayRange,
                     "stepNumber" to task.stepNumber,
                     "title" to task.title,

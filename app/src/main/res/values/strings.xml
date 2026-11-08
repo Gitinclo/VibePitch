@@ -21,4 +21,12 @@
     <string name="save_prospect_cta">Save to CRM &amp; Launch Demo</string>
     <string name="copy_script_cta">Copy Script</string>
     <string name="share_script_cta">Share Pitch</string>
+    <string name="status_offline_local">Offline • Local</string>
+    <string name="status_local_storage">Local Storage</string>
+    <string name="status_cloud_firestore">Firestore Live</string>
+    <string name="offline_storage_banner_title">Offline • Saving to Local Storage</string>
+    <string name="offline_storage_banner_subtitle">No internet connection detected. Prospects, leads, and checklist updates are being saved to on-device local storage instead of Firestore.</string>
+    <string name="offline_storage_account_subtitle">Your device is offline. Changes are safely saved to local storage right now instead of Cloud Firestore.</string>
+    <string name="guest_local_storage_desc">Guest mode active: saving data to local device storage instead of Firestore.</string>
+    <string name="cloud_storage_active_desc">Online: syncing data to Cloud Firestore.</string>
 </resources>
