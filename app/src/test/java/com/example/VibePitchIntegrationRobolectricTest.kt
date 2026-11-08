@@ -19,7 +19,7 @@ import com.example.ui.AppTab
 import com.example.ui.VibePitchViewModel
 import com.example.ui.screens.OfflineStorageNoticeBanner
 import com.example.ui.screens.StorageSyncStatusDotChip
-import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.VibePitchTheme
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -218,7 +218,7 @@ class VibePitchIntegrationRobolectricTest {
     fun networkStorageStatusComponents_renderOfflineDotAndBannerCorrectlyInCompose() {
         var chipClicked = false
         composeTestRule.setContent {
-            MyApplicationTheme {
+            VibePitchTheme {
                 androidx.compose.foundation.layout.Column {
                     StorageSyncStatusDotChip(
                         isDeviceOnline = false,
@@ -248,7 +248,7 @@ class VibePitchIntegrationRobolectricTest {
     fun vibeGuardrailsExplorerCard_renders100RulesAndSupportsCategoryFilteringAndExport() {
         var lastCopiedMessage: String? = null
         composeTestRule.setContent {
-            MyApplicationTheme {
+            VibePitchTheme {
                 androidx.compose.foundation.layout.Column(
                     modifier = androidx.compose.ui.Modifier.verticalScroll(
                         androidx.compose.foundation.rememberScrollState()

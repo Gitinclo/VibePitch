@@ -9,14 +9,15 @@ import com.example.data.model.CapturedLead
 import com.example.data.model.GuestLifecycleStatus
 import com.example.data.model.NicheCatalog
 import com.example.data.model.NicheKey
-import com.example.data.model.PipelineStage
 import com.example.data.model.PlaybookTask
 import com.example.data.model.ProspectProfile
 import com.example.data.model.RevenueStreamMode
 import com.example.data.repository.VibePitchRepository
 import com.example.domain.InputBoundsValidator
+import com.example.domain.VibePitchWorkspaceCoordinator
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +35,13 @@ class VibePitchViewModel(
     private val currentUserId: String,
     val isGuestMode: Boolean
 ) : ViewModel() {
+
+    private val coordinator = VibePitchWorkspaceCoordinator(
+        repository = repository,
+        guestSessionManager = guestSessionManager,
+        currentUserId = currentUserId,
+        isGuestMode = isGuestMode
+    )
 
     private val _selectedTab = MutableStateFlow(AppTab.LIVE_DEMO)
     val selectedTab: StateFlow<AppTab> = _selectedTab.asStateFlow()
@@ -71,9 +79,7 @@ class VibePitchViewModel(
         if (!isGuestMode && repository != null) {
             repository.observeBusinessProfile(currentUserId)
                 .catch { error ->
-                    val firestoreError = generateSequence(error) { it.cause }
-                        .filterIsInstance<FirebaseFirestoreException>()
-                        .firstOrNull()
+                    val firestoreError = error.unwrapFirestoreException()
                     if (firestoreError == null && error is CancellationException) throw error
                     Log.w(TAG, "Error observing business profile", firestoreError ?: error)
                     emit(null)
@@ -92,110 +98,33 @@ class VibePitchViewModel(
         }
 
     val prospectsState: StateFlow<UiState<List<ProspectProfile>>> =
-        if (!isGuestMode && repository != null) {
-            repository.observeProspects(currentUserId)
-                .map<List<ProspectProfile>, UiState<List<ProspectProfile>>> { UiState.Success(it) }
-                .catch { error ->
-                    val firestoreError = generateSequence(error) { it.cause }
-                        .filterIsInstance<FirebaseFirestoreException>()
-                        .firstOrNull()
-                    if (firestoreError == null && error is CancellationException) throw error
-                    val rootError = firestoreError ?: error
-                    Log.w(TAG, "Error observing prospects", rootError)
-                    emit(UiState.Error(rootError.message ?: "Failed to load prospects"))
-                }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                    initialValue = UiState.Loading
-                )
-        } else {
-            guestSessionManager.guestProspects
-                .map<List<ProspectProfile>, UiState<List<ProspectProfile>>> { UiState.Success(it) }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                    initialValue = UiState.Success(guestSessionManager.guestProspects.value)
-                )
-        }
+        observeCollectionAsUiState(
+            cloudFlow = { repository?.observeProspects(currentUserId) },
+            guestFlow = guestSessionManager.guestProspects,
+            fallbackError = "Failed to load prospects"
+        )
 
     val leadsState: StateFlow<UiState<List<CapturedLead>>> =
-        if (!isGuestMode && repository != null) {
-            repository.observeLeads(currentUserId)
-                .map<List<CapturedLead>, UiState<List<CapturedLead>>> { UiState.Success(it) }
-                .catch { error ->
-                    val firestoreError = generateSequence(error) { it.cause }
-                        .filterIsInstance<FirebaseFirestoreException>()
-                        .firstOrNull()
-                    if (firestoreError == null && error is CancellationException) throw error
-                    val rootError = firestoreError ?: error
-                    Log.w(TAG, "Error observing leads", rootError)
-                    emit(UiState.Error(rootError.message ?: "Failed to load leads"))
-                }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                    initialValue = UiState.Loading
-                )
-        } else {
-            guestSessionManager.guestLeads
-                .map<List<CapturedLead>, UiState<List<CapturedLead>>> { UiState.Success(it) }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                    initialValue = UiState.Success(guestSessionManager.guestLeads.value)
-                )
-        }
+        observeCollectionAsUiState(
+            cloudFlow = { repository?.observeLeads(currentUserId) },
+            guestFlow = guestSessionManager.guestLeads,
+            fallbackError = "Failed to load leads"
+        )
 
     val playbookState: StateFlow<UiState<List<PlaybookTask>>> =
-        if (!isGuestMode && repository != null) {
-            repository.observePlaybookTasks(currentUserId)
-                .map<List<PlaybookTask>, UiState<List<PlaybookTask>>> { UiState.Success(it) }
-                .catch { error ->
-                    val firestoreError = generateSequence(error) { it.cause }
-                        .filterIsInstance<FirebaseFirestoreException>()
-                        .firstOrNull()
-                    if (firestoreError == null && error is CancellationException) throw error
-                    val rootError = firestoreError ?: error
-                    Log.w(TAG, "Error observing playbook", rootError)
-                    emit(UiState.Error(rootError.message ?: "Failed to load 14-day plan"))
-                }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                    initialValue = UiState.Loading
-                )
-        } else {
-            guestSessionManager.guestPlaybook
-                .map<List<PlaybookTask>, UiState<List<PlaybookTask>>> { UiState.Success(it) }
-                .stateIn(
-                    scope = viewModelScope,
-                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                    initialValue = UiState.Success(guestSessionManager.guestPlaybook.value)
-                )
-        }
+        observeCollectionAsUiState(
+            cloudFlow = { repository?.observePlaybookTasks(currentUserId) },
+            guestFlow = guestSessionManager.guestPlaybook,
+            fallbackError = "Failed to load 14-day plan"
+        )
 
     init {
         if (isGuestMode) {
             guestSessionManager.refreshStatus()
         } else if (repository != null) {
             viewModelScope.launch {
-                val pendingProfile = guestSessionManager.consumePendingBusinessUpgradeDraft(currentUserId)
-                if (guestSessionManager.hasGuestDataToMigrate() || pendingProfile != null) {
-                    repository.migrateGuestDataToCloud(
-                        userId = currentUserId,
-                        profile = pendingProfile,
-                        guestProspects = guestSessionManager.guestProspects.value,
-                        guestLeads = guestSessionManager.guestLeads.value,
-                        guestPlaybook = guestSessionManager.guestPlaybook.value
-                    ).onSuccess {
-                        guestSessionManager.markGuestMigratedAndDeactivate()
-                        _snackbarMessage.value = "Permanent Business Account activated & guest data synced!"
-                    }.onFailure {
-                        repository.seedStarterDataIfEmpty(currentUserId)
-                    }
-                } else {
-                    repository.seedStarterDataIfEmpty(currentUserId)
+                coordinator.syncGuestUpgradeOrSeedStarterData()?.let { msg ->
+                    _snackbarMessage.value = msg
                 }
             }
         }
@@ -283,17 +212,11 @@ class VibePitchViewModel(
     }
 
     fun savePermanentBusinessProfileDirectly(profile: BusinessAccountProfile) {
-        if (!_isDeviceOnline.value || repository == null) {
-            guestSessionManager.savePendingBusinessUpgradeDraft(profile)
-            _showBusinessUpgradeModal.value = false
-            _snackbarMessage.value = "Offline • Business profile saved to local storage"
-            return
-        }
         viewModelScope.launch {
-            repository.saveBusinessProfile(profile.copy(userId = currentUserId))
-                .onSuccess {
+            coordinator.saveBusinessProfile(profile, _isDeviceOnline.value)
+                .onSuccess { message ->
                     _showBusinessUpgradeModal.value = false
-                    _snackbarMessage.value = "Business Account Profile saved to Firestore!"
+                    _snackbarMessage.value = message
                 }
                 .onFailure { err ->
                     _snackbarMessage.value = err.localizedMessage ?: "Failed to save business profile"
@@ -306,12 +229,11 @@ class VibePitchViewModel(
         val firstPackage = packages.firstOrNull { it.popularBadge } ?: packages.first()
         val firstAddOn = NicheCatalog.getAddOns(niche).firstOrNull()?.id
 
-        val matchingArchetype = when (niche.revenueStream) {
+        _selectedOfferArchetype.value = when (niche.revenueStream) {
             RevenueStreamMode.LOCAL_BUSINESS -> OfferArchetype.BOOKING_QUOTE_FORM
             RevenueStreamMode.FREELANCE_MICRO_TOOLS -> OfferArchetype.UPWORK_MICRO_TOOL
             RevenueStreamMode.PROTOTYPE_REMEDIATION -> OfferArchetype.AI_PROTOTYPE_RESCUE
         }
-        _selectedOfferArchetype.value = matchingArchetype
 
         _activeBrand.update {
             it.copy(
@@ -404,51 +326,22 @@ class VibePitchViewModel(
             _snackbarMessage.value = "Enter a business name first"
             return
         }
-        val normalized = InputBoundsValidator.normalizeProspectInput(
-            businessName = brand.businessName,
-            contactName = brand.contactName.ifBlank { "Owner" },
-            websiteGapNote = brand.websiteGapNote.ifBlank { brand.niche.microProblemSummary },
-            tagline = brand.tagline.ifBlank { brand.niche.defaultTagline },
-            depositPercent = brand.depositPercent,
-            setupFeeOffer = brand.setupFeeOffer,
-            monthlyRetainerOffer = brand.monthlyRetainerOffer
-        )
-        val prospect = ProspectProfile(
-            id = "",
-            userId = currentUserId,
-            businessName = normalized.businessName,
-            contactName = normalized.contactName,
-            nicheKey = brand.niche.key,
-            websiteGapNote = normalized.websiteGapNote,
-            brandColorHex = brand.brandColorHex,
-            tagline = normalized.tagline,
-            depositPercent = normalized.depositPercent.toLong(),
-            setupFeeOffer = normalized.setupFeeOffer.toLong(),
-            monthlyRetainerOffer = normalized.monthlyRetainerOffer.toLong(),
-            stage = PipelineStage.DEMO_READY.key
-        )
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
-            val newId = guestSessionManager.addOrUpdateGuestProspect(prospect)
-            _activeBrand.update { it.copy(prospectId = newId) }
-            _selectedTab.value = AppTab.LIVE_DEMO
-            _snackbarMessage.value = if (!_isDeviceOnline.value) {
-                "Offline • Saved ${normalized.businessName} to local storage & updated Demo"
-            } else {
-                "Saved ${normalized.businessName} to Guest CRM (local storage) & updated Demo"
-            }
-        } else {
-            viewModelScope.launch {
-                repository.createProspect(prospect)
-                    .onSuccess { newId ->
-                        _activeBrand.update { it.copy(prospectId = newId) }
-                        _selectedTab.value = AppTab.LIVE_DEMO
-                        _snackbarMessage.value = "Saved ${normalized.businessName} to CRM & updated Live Demo"
+        val prospect = coordinator.buildProspectFromBrand(brand)
+        val isOnline = _isDeviceOnline.value
+        viewModelScope.launch {
+            coordinator.persistProspect(prospect, isOnline)
+                .onSuccess { newId ->
+                    _activeBrand.update { it.copy(prospectId = newId) }
+                    _selectedTab.value = AppTab.LIVE_DEMO
+                    _snackbarMessage.value = when {
+                        !isOnline -> "Offline • Saved ${prospect.businessName} to local storage & updated Demo"
+                        coordinator.isOfflineOrGuest(isOnline) -> "Saved ${prospect.businessName} to Guest CRM (local storage) & updated Demo"
+                        else -> "Saved ${prospect.businessName} to CRM & updated Live Demo"
                     }
-                    .onFailure { err ->
-                        _snackbarMessage.value = err.localizedMessage ?: "Failed to save prospect"
-                    }
-            }
+                }
+                .onFailure { err ->
+                    _snackbarMessage.value = err.localizedMessage ?: "Failed to save prospect"
+                }
         }
     }
 
@@ -463,89 +356,54 @@ class VibePitchViewModel(
             _snackbarMessage.value = "Business name is required"
             return
         }
-        val normalized = InputBoundsValidator.normalizeProspectInput(
-            businessName = businessName,
-            contactName = contactName.ifBlank { "Owner" },
-            websiteGapNote = websiteGapNote.ifBlank { niche.microProblemSummary },
-            tagline = niche.defaultTagline,
-            depositPercent = 20,
-            setupFeeOffer = 250,
-            monthlyRetainerOffer = 35
-        )
-        val prospect = ProspectProfile(
-            userId = currentUserId,
-            businessName = normalized.businessName,
-            contactName = normalized.contactName,
-            nicheKey = niche.key,
-            websiteGapNote = normalized.websiteGapNote,
-            brandColorHex = brandColorHex,
-            tagline = normalized.tagline,
-            depositPercent = normalized.depositPercent.toLong(),
-            setupFeeOffer = normalized.setupFeeOffer.toLong(),
-            monthlyRetainerOffer = normalized.monthlyRetainerOffer.toLong(),
-            stage = PipelineStage.AUDITED.key
-        )
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
-            guestSessionManager.addOrUpdateGuestProspect(prospect)
-            _snackbarMessage.value = if (!_isDeviceOnline.value) {
-                "Offline • Added ${normalized.businessName} to local storage"
-            } else {
-                "Added ${normalized.businessName} to pipeline"
-            }
-        } else {
-            viewModelScope.launch {
-                repository.createProspect(prospect)
-                    .onSuccess {
-                        _snackbarMessage.value = "Added ${normalized.businessName} to pipeline"
+        val prospect = coordinator.buildNewProspect(businessName, contactName, niche, websiteGapNote, brandColorHex)
+        val isOnline = _isDeviceOnline.value
+        viewModelScope.launch {
+            coordinator.persistProspect(prospect, isOnline)
+                .onSuccess {
+                    _snackbarMessage.value = if (!isOnline) {
+                        "Offline • Added ${prospect.businessName} to local storage"
+                    } else {
+                        "Added ${prospect.businessName} to pipeline"
                     }
-                    .onFailure { err ->
-                        _snackbarMessage.value = err.localizedMessage ?: "Could not create prospect"
-                    }
-            }
+                }
+                .onFailure { err ->
+                    _snackbarMessage.value = err.localizedMessage ?: "Could not create prospect"
+                }
         }
     }
 
     fun advanceProspectStage(prospect: ProspectProfile) {
-        val current = PipelineStage.fromKey(prospect.stage)
-        val next = current.nextStage()
-        val updated = prospect.copy(stage = next.key)
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
-            guestSessionManager.addOrUpdateGuestProspect(updated)
-            _snackbarMessage.value = if (!_isDeviceOnline.value) {
-                "Offline • ${prospect.businessName} moved to ${next.label} (saved locally)"
-            } else {
-                "${prospect.businessName} moved to ${next.label}"
-            }
-        } else {
-            viewModelScope.launch {
-                repository.updateProspect(updated)
-                    .onSuccess {
-                        _snackbarMessage.value = "${prospect.businessName} moved to ${next.label}"
+        val isOnline = _isDeviceOnline.value
+        viewModelScope.launch {
+            coordinator.advanceProspectStage(prospect, isOnline)
+                .onSuccess { next ->
+                    _snackbarMessage.value = if (!isOnline) {
+                        "Offline • ${prospect.businessName} moved to ${next.label} (saved locally)"
+                    } else {
+                        "${prospect.businessName} moved to ${next.label}"
                     }
-                    .onFailure { err ->
-                        _snackbarMessage.value = err.localizedMessage ?: "Failed to update stage"
-                    }
-            }
+                }
+                .onFailure { err ->
+                    _snackbarMessage.value = err.localizedMessage ?: "Failed to update stage"
+                }
         }
     }
 
     fun deleteProspect(prospectId: String) {
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
-            guestSessionManager.deleteGuestProspect(prospectId)
-            _snackbarMessage.value = if (!_isDeviceOnline.value) {
-                "Offline • Prospect removed from local storage"
-            } else {
-                "Prospect removed"
-            }
-        } else {
-            viewModelScope.launch {
-                repository.deleteProspect(prospectId)
-                    .onSuccess { _snackbarMessage.value = "Prospect removed" }
-                    .onFailure { err -> _snackbarMessage.value = err.localizedMessage ?: "Delete failed" }
-            }
+        val isOnline = _isDeviceOnline.value
+        viewModelScope.launch {
+            coordinator.deleteProspect(prospectId, isOnline)
+                .onSuccess {
+                    _snackbarMessage.value = if (!isOnline) {
+                        "Offline • Prospect removed from local storage"
+                    } else {
+                        "Prospect removed"
+                    }
+                }
+                .onFailure { err ->
+                    _snackbarMessage.value = err.localizedMessage ?: "Delete failed"
+                }
         }
     }
 
@@ -560,9 +418,7 @@ class VibePitchViewModel(
     fun toggleAddOn(addOnId: String) {
         _quoteState.update { state ->
             val updated = state.selectedAddOnIds.toMutableSet()
-            if (!updated.add(addOnId)) {
-                updated.remove(addOnId)
-            }
+            if (!updated.add(addOnId)) updated.remove(addOnId)
             state.copy(selectedAddOnIds = updated)
         }
     }
@@ -595,38 +451,16 @@ class VibePitchViewModel(
     fun submitBookingIntake() {
         val brand = _activeBrand.value
         val calc = _quoteState.value
-
         if (calc.customerName.isBlank() || calc.customerPhone.isBlank()) {
             _snackbarMessage.value = "Please enter customer name and phone number to lock in the quote"
             return
         }
 
-        val packages = NicheCatalog.getServicePackages(brand.niche)
-        val selectedPkg = packages.firstOrNull { it.id == calc.selectedServiceId } ?: packages.first()
-        val selectedAddOnNames = NicheCatalog.getAddOns(brand.niche)
-            .filter { calc.selectedAddOnIds.contains(it.id) }
-            .joinToString(", ") { it.name }
         val (estimatedTotal, depositAmount) = calculateCurrentQuote()
+        val lead = coordinator.buildCapturedLead(brand, calc, estimatedTotal, depositAmount)
+        val isOnline = _isDeviceOnline.value
 
-        val lead = CapturedLead(
-            userId = currentUserId,
-            prospectId = brand.prospectId,
-            prospectBusinessName = brand.businessName,
-            nicheKey = brand.niche.key,
-            customerName = calc.customerName.trim(),
-            customerPhone = calc.customerPhone.trim(),
-            customerEmail = calc.customerEmail.trim(),
-            preferredDate = calc.preferredDate.trim().ifBlank { "Next Available Slot" },
-            selectedServiceName = selectedPkg.title,
-            selectedAddOns = selectedAddOnNames,
-            unitQuantity = calc.unitValue.toLong(),
-            estimatedTotal = estimatedTotal.toLong(),
-            depositAmount = depositAmount.toLong(),
-            notes = calc.notes.trim()
-        )
-
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
+        if (coordinator.isOfflineOrGuest(isOnline)) {
             guestSessionManager.addGuestLead(lead)
             _quoteState.update {
                 it.copy(
@@ -638,7 +472,7 @@ class VibePitchViewModel(
                     latestSubmittedLead = lead
                 )
             }
-            _snackbarMessage.value = if (!_isDeviceOnline.value) {
+            _snackbarMessage.value = if (!isOnline) {
                 "Offline • Lead captured & saved to local storage!"
             } else {
                 "Lead captured & saved to Guest CRM!"
@@ -646,8 +480,8 @@ class VibePitchViewModel(
         } else {
             _quoteState.update { it.copy(isSubmitting = true) }
             viewModelScope.launch {
-                repository.submitLead(lead)
-                    .onSuccess {
+                repository?.submitLead(lead)
+                    ?.onSuccess {
                         _quoteState.update {
                             it.copy(
                                 isSubmitting = false,
@@ -660,7 +494,7 @@ class VibePitchViewModel(
                         }
                         _snackbarMessage.value = "Lead captured & saved to CRM!"
                     }
-                    .onFailure { err ->
+                    ?.onFailure { err ->
                         _quoteState.update { it.copy(isSubmitting = false) }
                         _snackbarMessage.value = err.localizedMessage ?: "Failed to submit booking"
                     }
@@ -669,37 +503,34 @@ class VibePitchViewModel(
     }
 
     fun deleteLead(leadId: String) {
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
-            guestSessionManager.deleteGuestLead(leadId)
-            _snackbarMessage.value = if (!_isDeviceOnline.value) {
-                "Offline • Lead deleted from local storage"
-            } else {
-                "Lead deleted"
-            }
-        } else {
-            viewModelScope.launch {
-                repository.deleteLead(leadId)
-                    .onSuccess { _snackbarMessage.value = "Lead deleted" }
-                    .onFailure { err -> _snackbarMessage.value = err.localizedMessage ?: "Failed to delete lead" }
-            }
+        val isOnline = _isDeviceOnline.value
+        viewModelScope.launch {
+            coordinator.deleteLead(leadId, isOnline)
+                .onSuccess {
+                    _snackbarMessage.value = if (!isOnline) {
+                        "Offline • Lead deleted from local storage"
+                    } else {
+                        "Lead deleted"
+                    }
+                }
+                .onFailure { err ->
+                    _snackbarMessage.value = err.localizedMessage ?: "Failed to delete lead"
+                }
         }
     }
 
     fun togglePlaybookTask(task: PlaybookTask) {
-        val offlineOrGuest = isGuestMode || repository == null || !_isDeviceOnline.value
-        if (offlineOrGuest) {
-            guestSessionManager.toggleGuestPlaybookTask(task.id)
-            if (!_isDeviceOnline.value) {
-                _snackbarMessage.value = "Offline • Checklist progress saved to local storage"
-            }
-        } else {
-            viewModelScope.launch {
-                repository.togglePlaybookTask(task)
-                    .onFailure { err ->
-                        _snackbarMessage.value = err.localizedMessage ?: "Could not update checklist"
+        val isOnline = _isDeviceOnline.value
+        viewModelScope.launch {
+            coordinator.togglePlaybookTask(task, isOnline)
+                .onSuccess {
+                    if (!isOnline) {
+                        _snackbarMessage.value = "Offline • Checklist progress saved to local storage"
                     }
-            }
+                }
+                .onFailure { err ->
+                    _snackbarMessage.value = err.localizedMessage ?: "Could not update checklist"
+                }
         }
     }
 
@@ -723,6 +554,43 @@ class VibePitchViewModel(
             sampleDeposit = sampleDeposit
         )
     }
+
+    private fun <T> observeCollectionAsUiState(
+        cloudFlow: () -> Flow<List<T>>?,
+        guestFlow: StateFlow<List<T>>,
+        fallbackError: String
+    ): StateFlow<UiState<List<T>>> {
+        val activeCloudFlow = if (!isGuestMode) cloudFlow() else null
+        return if (activeCloudFlow != null) {
+            activeCloudFlow
+                .map<List<T>, UiState<List<T>>> { UiState.Success(it) }
+                .catch { error ->
+                    val firestoreError = error.unwrapFirestoreException()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val rootError = firestoreError ?: error
+                    Log.w(TAG, fallbackError, rootError)
+                    emit(UiState.Error(rootError.message ?: fallbackError))
+                }
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+                    initialValue = UiState.Loading
+                )
+        } else {
+            guestFlow
+                .map<List<T>, UiState<List<T>>> { UiState.Success(it) }
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
+                    initialValue = UiState.Success(guestFlow.value)
+                )
+        }
+    }
+
+    private fun Throwable.unwrapFirestoreException(): FirebaseFirestoreException? =
+        generateSequence(this) { it.cause }
+            .filterIsInstance<FirebaseFirestoreException>()
+            .firstOrNull()
 
     private companion object {
         const val TAG = "VibePitchVM"

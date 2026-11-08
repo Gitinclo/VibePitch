@@ -60,7 +60,7 @@ val AppShapes = Shapes(
 )
 
 @Composable
-fun MyApplicationTheme(
+fun VibePitchTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
@@ -73,3 +73,4 @@ fun MyApplicationTheme(
         content = content
     )
 }
+

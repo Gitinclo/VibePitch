@@ -15,7 +15,7 @@ import com.example.data.local.LocalGuestSessionManager
 import com.example.data.remote.FirebaseEnvValidator
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.VibePitchWorkspaceScreen
-import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.VibePitchTheme
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.flowOf
 
@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            VibePitchTheme {
                 AppNavigation()
             }
         }
