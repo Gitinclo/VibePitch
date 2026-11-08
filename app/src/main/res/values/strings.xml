@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">VibePitch</string>
+    <string name="auth_headline">Land Your First Local Business Client in 14 Days</string>
+    <string name="auth_subtitle">White-label instant quote calculators, booking intake demos, Loom pitch scripts, and prospect CRM in one studio.</string>
+    <string name="sign_in_with_google">Sign in with Google (Permanent Business Account)</string>
+    <string name="start_guest_account">Continue with 30-Day Guest Account</string>
+    <string name="guest_account_subtext">Full access for 30 days • Reminder on Day 20 to upgrade to a permanent business account</string>
+    <string name="upgrade_business_account">Upgrade to Business Account</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="exit_guest_mode">Exit Guest Mode</string>
+    <string name="nav_live_demo">Live Demo</string>
+    <string name="nav_brand_studio">Brand Studio</string>
+    <string name="nav_crm">CRM &amp; Leads</string>
+    <string name="nav_playbook">14-Day Plan</string>
+    <string name="presentation_mode_enter">Loom View</string>
+    <string name="presentation_mode_exit">Exit Loom View</string>
+    <string name="quote_calculator_title">Instant Estimate Calculator</string>
+    <string name="booking_intake_title">Reserve Slot &amp; Lock In Quote</string>
+    <string name="submit_booking_cta">Lock In Estimate &amp; Request Booking</string>
+    <string name="apply_branding_cta">Apply to Live Demo</string>
+    <string name="save_prospect_cta">Save to CRM &amp; Launch Demo</string>
+    <string name="copy_script_cta">Copy Script</string>
+    <string name="share_script_cta">Share Pitch</string>
+</resources>

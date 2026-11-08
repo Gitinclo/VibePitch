@@ -1,0 +1,6 @@
+{
+  "name": "VibePitch",
+  "description": "White-label quote & booking demo builder, Loom script generator, and 14-day client acquisition CRM for local business outreach.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,334 @@
+{
+  "entities": {
+    "BusinessAccountProfile": {
+      "title": "BusinessAccountProfile",
+      "description": "Permanent business or agency account profile created when upgrading from a 30-day guest account or registering a business workspace.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated owner UID."
+        },
+        "agencyName": {
+          "type": "string",
+          "description": "Permanent business or agency display name."
+        },
+        "ownerName": {
+          "type": "string",
+          "description": "Full name of the account owner."
+        },
+        "businessEmail": {
+          "type": "string",
+          "description": "Business contact email address."
+        },
+        "businessPhone": {
+          "type": "string",
+          "description": "Business phone number for client alerts."
+        },
+        "primaryNicheKey": {
+          "type": "string",
+          "enum": [
+            "HOME_TRADES",
+            "AUTO_DETAILING",
+            "BOUTIQUE_FITNESS",
+            "SALON_AND_CLEANERS",
+            "DENTAL_AND_TUTORS",
+            "ECOMMERCE_SHOPIFY",
+            "SAAS_AI_REMEDIATION"
+          ],
+          "description": "Primary local business niche focus."
+        },
+        "websiteUrl": {
+          "type": "string",
+          "description": "Agency website or booking portfolio link."
+        },
+        "upgradedFromGuest": {
+          "type": "boolean",
+          "description": "Whether this permanent business account was upgraded from a 30-day guest session."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "agencyName",
+        "ownerName",
+        "businessEmail",
+        "businessPhone",
+        "primaryNicheKey",
+        "websiteUrl",
+        "upgradedFromGuest",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ProspectProfile": {
+      "title": "ProspectProfile",
+      "description": "A local business prospect and its white-label demo branding configuration.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated owner UID."
+        },
+        "businessName": {
+          "type": "string",
+          "description": "Prospect business name displayed in the white-label demo."
+        },
+        "contactName": {
+          "type": "string",
+          "description": "Decision maker or owner name for Loom outreach."
+        },
+        "nicheKey": {
+          "type": "string",
+          "enum": [
+            "HOME_TRADES",
+            "AUTO_DETAILING",
+            "BOUTIQUE_FITNESS",
+            "SALON_AND_CLEANERS",
+            "DENTAL_AND_TUTORS",
+            "ECOMMERCE_SHOPIFY",
+            "SAAS_AI_REMEDIATION"
+          ],
+          "description": "Selected niche template key."
+        },
+        "websiteGapNote": {
+          "type": "string",
+          "description": "Audit note about their current site (e.g. static contact form)."
+        },
+        "brandColorHex": {
+          "type": "string",
+          "description": "Hex color code used to theme the prospect's live demo."
+        },
+        "tagline": {
+          "type": "string",
+          "description": "Custom subtitle shown in the demo hero header."
+        },
+        "depositPercent": {
+          "type": "integer",
+          "description": "Deposit percentage required at booking."
+        },
+        "setupFeeOffer": {
+          "type": "integer",
+          "description": "One-time installation offer price in USD (default 250)."
+        },
+        "monthlyRetainerOffer": {
+          "type": "integer",
+          "description": "Monthly maintenance and hosting retainer in USD (default 35)."
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["AUDITED", "DEMO_READY", "LOOM_SENT", "TESTING_LIVE", "CLOSED_WON"],
+          "description": "Current CRM pipeline stage."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "businessName",
+        "contactName",
+        "nicheKey",
+        "websiteGapNote",
+        "brandColorHex",
+        "tagline",
+        "depositPercent",
+        "setupFeeOffer",
+        "monthlyRetainerOffer",
+        "stage",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CapturedLead": {
+      "title": "CapturedLead",
+      "description": "A quote and booking intake submission captured through the interactive demo.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated freelancer owner UID."
+        },
+        "prospectId": {
+          "type": "string",
+          "description": "Associated prospect ID or preset identifier."
+        },
+        "prospectBusinessName": {
+          "type": "string",
+          "description": "Business name active when the lead was captured."
+        },
+        "nicheKey": {
+          "type": "string",
+          "enum": [
+            "HOME_TRADES",
+            "AUTO_DETAILING",
+            "BOUTIQUE_FITNESS",
+            "SALON_AND_CLEANERS",
+            "DENTAL_AND_TUTORS",
+            "ECOMMERCE_SHOPIFY",
+            "SAAS_AI_REMEDIATION"
+          ],
+          "description": "Niche template used for the quote."
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Lead customer full name."
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Lead customer phone number for SMS follow-up."
+        },
+        "customerEmail": {
+          "type": "string",
+          "description": "Lead customer email address."
+        },
+        "preferredDate": {
+          "type": "string",
+          "description": "Preferred booking date and time window."
+        },
+        "selectedServiceName": {
+          "type": "string",
+          "description": "Selected core service package name."
+        },
+        "selectedAddOns": {
+          "type": "string",
+          "description": "Comma-separated list of selected add-ons."
+        },
+        "unitQuantity": {
+          "type": "integer",
+          "description": "Selected slider quantity/size value."
+        },
+        "estimatedTotal": {
+          "type": "integer",
+          "description": "Calculated total estimate in USD."
+        },
+        "depositAmount": {
+          "type": "integer",
+          "description": "Calculated deposit due at booking in USD."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Customer project or intake notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "prospectId",
+        "prospectBusinessName",
+        "nicheKey",
+        "customerName",
+        "customerPhone",
+        "customerEmail",
+        "preferredDate",
+        "selectedServiceName",
+        "selectedAddOns",
+        "unitQuantity",
+        "estimatedTotal",
+        "depositAmount",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PlaybookTask": {
+      "title": "PlaybookTask",
+      "description": "A milestone item in the 14-day client acquisition execution plan.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated owner UID."
+        },
+        "dayRange": {
+          "type": "string",
+          "description": "Day window label (e.g. Days 1-2)."
+        },
+        "stepNumber": {
+          "type": "integer",
+          "description": "Step number (1 to 4)."
+        },
+        "title": {
+          "type": "string",
+          "description": "Actionable task title."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed execution instructions."
+        },
+        "proTip": {
+          "type": "string",
+          "description": "Pro-tip for safety, outreach, or conversion."
+        },
+        "isCompleted": {
+          "type": "boolean",
+          "description": "Whether the freelancer completed this task."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when updated (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "dayRange",
+        "stepNumber",
+        "title",
+        "description",
+        "proTip",
+        "isCompleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/businessProfile/{profileId}": {
+      "schema": { "$ref": "#/entities/BusinessAccountProfile" },
+      "description": "Permanent business account profile for the authenticated user."
+    },
+    "/users/{userId}/prospects/{prospectId}": {
+      "schema": { "$ref": "#/entities/ProspectProfile" },
+      "description": "Per-user local business prospects and white-label demo configurations."
+    },
+    "/users/{userId}/leads/{leadId}": {
+      "schema": { "$ref": "#/entities/CapturedLead" },
+      "description": "Per-user quote and booking intake leads captured during demos."
+    },
+    "/users/{userId}/playbook/{taskId}": {
+      "schema": { "$ref": "#/entities/PlaybookTask" },
+      "description": "Per-user 14-day client acquisition checklist items."
+    }
+  }
+}

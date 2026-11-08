@@ -1,0 +1,204 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidNicheKey(niche) {
+      return niche is string && (
+        niche == 'HOME_TRADES' ||
+        niche == 'AUTO_DETAILING' ||
+        niche == 'BOUTIQUE_FITNESS' ||
+        niche == 'SALON_AND_CLEANERS' ||
+        niche == 'DENTAL_AND_TUTORS' ||
+        niche == 'ECOMMERCE_SHOPIFY' ||
+        niche == 'SAAS_AI_REMEDIATION'
+      );
+    }
+
+    function isValidStage(stage) {
+      return stage is string && (
+        stage == 'AUDITED' ||
+        stage == 'DEMO_READY' ||
+        stage == 'LOOM_SENT' ||
+        stage == 'TESTING_LIVE' ||
+        stage == 'CLOSED_WON'
+      );
+    }
+
+    function isValidBusinessAccountProfile(data) {
+      return data.keys().hasAll([
+               'userId', 'agencyName', 'ownerName', 'businessEmail',
+               'businessPhone', 'primaryNicheKey', 'websiteUrl',
+               'upgradedFromGuest', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'agencyName', 'ownerName', 'businessEmail',
+               'businessPhone', 'primaryNicheKey', 'websiteUrl',
+               'upgradedFromGuest', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.agencyName is string && data.agencyName.size() >= 1 && data.agencyName.size() <= 100 &&
+             data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 100 &&
+             data.businessEmail is string && data.businessEmail.size() <= 120 &&
+             data.businessPhone is string && data.businessPhone.size() <= 40 &&
+             isValidNicheKey(data.primaryNicheKey) &&
+             data.websiteUrl is string && data.websiteUrl.size() <= 200 &&
+             data.upgradedFromGuest is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidProspectProfile(data) {
+      return data.keys().hasAll([
+               'userId', 'businessName', 'contactName', 'nicheKey',
+               'websiteGapNote', 'brandColorHex', 'tagline',
+               'depositPercent', 'setupFeeOffer', 'monthlyRetainerOffer',
+               'stage', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'businessName', 'contactName', 'nicheKey',
+               'websiteGapNote', 'brandColorHex', 'tagline',
+               'depositPercent', 'setupFeeOffer', 'monthlyRetainerOffer',
+               'stage', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 100 &&
+             data.contactName is string && data.contactName.size() <= 100 &&
+             isValidNicheKey(data.nicheKey) &&
+             data.websiteGapNote is string && data.websiteGapNote.size() <= 300 &&
+             data.brandColorHex is string && data.brandColorHex.size() >= 4 && data.brandColorHex.size() <= 12 &&
+             data.tagline is string && data.tagline.size() <= 150 &&
+             data.depositPercent is int && data.depositPercent >= 0 && data.depositPercent <= 100 &&
+             data.setupFeeOffer is int && data.setupFeeOffer >= 0 && data.setupFeeOffer <= 50000 &&
+             data.monthlyRetainerOffer is int && data.monthlyRetainerOffer >= 0 && data.monthlyRetainerOffer <= 5000 &&
+             isValidStage(data.stage) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCapturedLead(data) {
+      return data.keys().hasAll([
+               'userId', 'prospectId', 'prospectBusinessName', 'nicheKey',
+               'customerName', 'customerPhone', 'customerEmail', 'preferredDate',
+               'selectedServiceName', 'selectedAddOns', 'unitQuantity',
+               'estimatedTotal', 'depositAmount', 'notes', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'prospectId', 'prospectBusinessName', 'nicheKey',
+               'customerName', 'customerPhone', 'customerEmail', 'preferredDate',
+               'selectedServiceName', 'selectedAddOns', 'unitQuantity',
+               'estimatedTotal', 'depositAmount', 'notes', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.prospectId is string && data.prospectId.size() <= 128 &&
+             data.prospectBusinessName is string && data.prospectBusinessName.size() >= 1 && data.prospectBusinessName.size() <= 100 &&
+             isValidNicheKey(data.nicheKey) &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.customerPhone is string && data.customerPhone.size() >= 1 && data.customerPhone.size() <= 40 &&
+             data.customerEmail is string && data.customerEmail.size() <= 120 &&
+             data.preferredDate is string && data.preferredDate.size() >= 1 && data.preferredDate.size() <= 80 &&
+             data.selectedServiceName is string && data.selectedServiceName.size() >= 1 && data.selectedServiceName.size() <= 120 &&
+             data.selectedAddOns is string && data.selectedAddOns.size() <= 300 &&
+             data.unitQuantity is int && data.unitQuantity >= 1 && data.unitQuantity <= 100000 &&
+             data.estimatedTotal is int && data.estimatedTotal >= 0 && data.estimatedTotal <= 1000000 &&
+             data.depositAmount is int && data.depositAmount >= 0 && data.depositAmount <= 1000000 &&
+             data.notes is string && data.notes.size() <= 500 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPlaybookTask(data) {
+      return data.keys().hasAll([
+               'userId', 'dayRange', 'stepNumber', 'title',
+               'description', 'proTip', 'isCompleted', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'dayRange', 'stepNumber', 'title',
+               'description', 'proTip', 'isCompleted', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.dayRange is string && data.dayRange.size() >= 1 && data.dayRange.size() <= 40 &&
+             data.stepNumber is int && data.stepNumber >= 1 && data.stepNumber <= 20 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+             data.description is string && data.description.size() >= 1 && data.description.size() <= 400 &&
+             data.proTip is string && data.proTip.size() <= 300 &&
+             data.isCompleted is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/businessProfile/{profileId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(profileId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(userId) && isValidId(profileId) && request.auth.uid == userId && isValidBusinessAccountProfile(incoming());
+      allow update: if isSignedIn() && isValidBusinessAccountProfile(incoming()) && isValidId(userId) && isValidId(profileId) && request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'agencyName', 'ownerName', 'businessEmail', 'businessPhone',
+                         'primaryNicheKey', 'websiteUrl', 'upgradedFromGuest', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(userId) && isValidId(profileId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+    }
+
+    match /users/{userId}/prospects/{prospectId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(prospectId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(userId) && isValidId(prospectId) && request.auth.uid == userId && isValidProspectProfile(incoming());
+      allow update: if isSignedIn() && isValidProspectProfile(incoming()) && isValidId(userId) && isValidId(prospectId) && request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'businessName', 'contactName', 'nicheKey', 'websiteGapNote',
+                         'brandColorHex', 'tagline', 'depositPercent', 'setupFeeOffer',
+                         'monthlyRetainerOffer', 'stage', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(userId) && isValidId(prospectId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+    }
+
+    match /users/{userId}/leads/{leadId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(leadId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(userId) && isValidId(leadId) && request.auth.uid == userId && isValidCapturedLead(incoming());
+      allow update: if isSignedIn() && isValidCapturedLead(incoming()) && isValidId(userId) && isValidId(leadId) && request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'notes', 'preferredDate', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(userId) && isValidId(leadId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+    }
+
+    match /users/{userId}/playbook/{taskId} {
+      allow get: if isSignedIn() && isValidId(userId) && isValidId(taskId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && isValidId(userId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(userId) && isValidId(taskId) && request.auth.uid == userId && isValidPlaybookTask(incoming());
+      allow update: if isSignedIn() && isValidPlaybookTask(incoming()) && isValidId(userId) && isValidId(taskId) && request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'isCompleted', 'title', 'description', 'proTip', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(userId) && isValidId(taskId) && request.auth.uid == userId && existing().userId == request.auth.uid;
+    }
+  }
+}
