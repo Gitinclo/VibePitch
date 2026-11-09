@@ -59,6 +59,9 @@ class VibePitchViewModel(
     private val _showComplianceDocsModal = MutableStateFlow(false)
     val showComplianceDocsModal: StateFlow<Boolean> = _showComplianceDocsModal.asStateFlow()
 
+    private val _showHardwareHudModal = MutableStateFlow(false)
+    val showHardwareHudModal: StateFlow<Boolean> = _showHardwareHudModal.asStateFlow()
+
     private val _isDeviceOnline = MutableStateFlow(true)
     val isDeviceOnline: StateFlow<Boolean> = _isDeviceOnline.asStateFlow()
 
@@ -119,6 +122,9 @@ class VibePitchViewModel(
     fun closeBusinessUpgradeModal() { _showBusinessUpgradeModal.value = false }
     fun openComplianceDocsModal() { _showComplianceDocsModal.value = true }
     fun closeComplianceDocsModal() { _showComplianceDocsModal.value = false }
+    fun openHardwareHudModal() { _showHardwareHudModal.value = true }
+    fun closeHardwareHudModal() { _showHardwareHudModal.value = false }
+    fun clearDomainCaches() { VibePitchStateTransitions.clearPitchScriptCache() }
     fun setDeviceOnlineStatus(isOnline: Boolean) { _isDeviceOnline.value = isOnline }
     fun dismissDay20Prompt() { guestSessionManager.dismissDay20PromptForToday() }
     fun stageBusinessProfileForGuestUpgrade(profile: BusinessAccountProfile) { guestSessionManager.savePendingBusinessUpgradeDraft(profile) }
@@ -336,10 +342,6 @@ class VibePitchViewModel(
     ): GeneratedPitchScripts {
         val brand = _activeBrand.value
         val (sampleTotal, sampleDeposit) = calculateCurrentQuote()
-        return PitchScriptGenerator.buildPitchScripts(
-            nicheKey = brand.niche, archetype = archetype, businessName = brand.businessName, contactName = brand.contactName,
-            setupFee = brand.setupFeeOffer, monthlyRetainer = brand.monthlyRetainerOffer, depositPercent = brand.depositPercent,
-            guardrailConfig = guardrails, websiteGapNote = brand.websiteGapNote, sampleTotal = sampleTotal, sampleDeposit = sampleDeposit
-        )
+        return VibePitchStateTransitions.buildOrGetPitchScripts(brand, archetype, guardrails, sampleTotal, sampleDeposit)
     }
 }

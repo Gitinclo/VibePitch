@@ -184,6 +184,46 @@ internal object VibePitchStateTransitions {
         return brand to quote
     }
 
+    @Volatile
+    private var cachedScriptKey: Int = 0
+    @Volatile
+    private var cachedPitchScripts: GeneratedPitchScripts? = null
+
+    fun buildOrGetPitchScripts(
+        brand: ActiveDemoBrandState,
+        archetype: OfferArchetype,
+        guardrails: ScopeGuardrailConfig,
+        sampleTotal: Int,
+        sampleDeposit: Int
+    ): GeneratedPitchScripts {
+        val key = arrayOf(brand, archetype, guardrails, sampleTotal, sampleDeposit).contentHashCode()
+        val existing = cachedPitchScripts
+        if (existing != null && cachedScriptKey == key) {
+            return existing
+        }
+        val generated = PitchScriptGenerator.buildPitchScripts(
+            nicheKey = brand.niche,
+            archetype = archetype,
+            businessName = brand.businessName,
+            contactName = brand.contactName,
+            setupFee = brand.setupFeeOffer,
+            monthlyRetainer = brand.monthlyRetainerOffer,
+            depositPercent = brand.depositPercent,
+            guardrailConfig = guardrails,
+            websiteGapNote = brand.websiteGapNote,
+            sampleTotal = sampleTotal,
+            sampleDeposit = sampleDeposit
+        )
+        cachedScriptKey = key
+        cachedPitchScripts = generated
+        return generated
+    }
+
+    fun clearPitchScriptCache() {
+        cachedScriptKey = 0
+        cachedPitchScripts = null
+    }
+
     private fun Throwable.unwrapFirestoreException(): FirebaseFirestoreException? =
         generateSequence(this) { it.cause }
             .filterIsInstance<FirebaseFirestoreException>()

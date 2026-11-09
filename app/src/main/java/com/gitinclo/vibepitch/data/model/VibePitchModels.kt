@@ -1,6 +1,7 @@
 package com.gitinclo.vibepitch.data.model
 
 import androidx.annotation.Keep
+import androidx.compose.runtime.Immutable
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
@@ -193,6 +194,7 @@ enum class PipelineStage(
     }
 }
 
+@Immutable
 data class ServicePackageOption(
     val id: String,
     val title: String,
@@ -203,6 +205,7 @@ data class ServicePackageOption(
     val popularBadge: Boolean = false
 )
 
+@Immutable
 data class AddOnOption(
     val id: String,
     val name: String,
@@ -210,6 +213,7 @@ data class AddOnOption(
     val description: String
 )
 
+@Immutable
 data class NichePreset(
     val nicheKey: NicheKey,
     val packages: List<ServicePackageOption>,
@@ -218,6 +222,7 @@ data class NichePreset(
 )
 
 @Keep
+@Immutable
 @IgnoreExtraProperties
 data class BusinessAccountProfile(
     @DocumentId val id: String = "",
@@ -234,6 +239,7 @@ data class BusinessAccountProfile(
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
 
+@Immutable
 data class GuestLifecycleStatus(
     val isGuestActive: Boolean = false,
     val startedAtMillis: Long = 0L,
@@ -253,6 +259,7 @@ data class GuestLifecycleStatus(
 }
 
 @Keep
+@Immutable
 @IgnoreExtraProperties
 data class ProspectProfile(
     @DocumentId val id: String = "",
@@ -272,6 +279,7 @@ data class ProspectProfile(
 )
 
 @Keep
+@Immutable
 @IgnoreExtraProperties
 data class CapturedLead(
     @DocumentId val id: String = "",
@@ -297,6 +305,7 @@ data class CapturedLead(
 }
 
 @Keep
+@Immutable
 @IgnoreExtraProperties
 data class PlaybookTask(
     @DocumentId val id: String = "",

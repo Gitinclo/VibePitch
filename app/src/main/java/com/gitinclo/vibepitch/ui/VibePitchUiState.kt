@@ -1,13 +1,17 @@
 package com.gitinclo.vibepitch.ui
 
+import androidx.compose.runtime.Immutable
 import com.gitinclo.vibepitch.data.model.CapturedLead
 import com.gitinclo.vibepitch.data.model.NicheCatalog
 import com.gitinclo.vibepitch.data.model.NicheKey
 import com.gitinclo.vibepitch.data.model.RevenueStreamMode
 
+@Immutable
 sealed interface UiState<out T> {
     data object Loading : UiState<Nothing>
+    @Immutable
     data class Success<T>(val data: T) : UiState<T>
+    @Immutable
     data class Error(val message: String) : UiState<Nothing>
 }
 
@@ -18,6 +22,7 @@ enum class AppTab(val route: String) {
     PLAYBOOK("playbook")
 }
 
+@Immutable
 data class ActiveDemoBrandState(
     val prospectId: String = "seed_prospect_hvac",
     val businessName: String = "Apex Climate & HVAC",
@@ -31,6 +36,7 @@ data class ActiveDemoBrandState(
     val monthlyRetainerOffer: Int = 35
 )
 
+@Immutable
 data class QuoteCalculatorState(
     val selectedServiceId: String = NicheCatalog.getServicePackages(NicheKey.HOME_TRADES).first().id,
     val unitValue: Int = NicheKey.HOME_TRADES.defaultUnitValue,
@@ -89,6 +95,7 @@ enum class OfferArchetype(
     )
 }
 
+@Immutable
 data class ScopeGuardrailConfig(
     val paymentGuardrail: String = "Stripe Payment Links / Native Checkout",
     val dataPrivacyGuardrail: String = "Google Forms / Zero-Trust Cloud Rules",
@@ -99,6 +106,7 @@ data class ScopeGuardrailConfig(
     val useManagedOAuth: Boolean = true
 )
 
+@Immutable
 data class GeneratedPitchScripts(
     val igFacebookDmScript: String,
     val marketplaceProposalScript: String,
@@ -117,6 +125,7 @@ data class GeneratedPitchScripts(
     )
 }
 
+@Immutable
 data class PitchScriptItem(
     val title: String,
     val body: String

@@ -192,7 +192,11 @@ fun ProspectCrmScreen(
                                     )
                                 }
                             } else {
-                                items(prospects, key = { it.id }) { prospect ->
+                                items(
+                                    items = prospects,
+                                    key = { it.id },
+                                    contentType = { "prospect_card" }
+                                ) { prospect ->
                                     ProspectPipelineCard(
                                         prospect = prospect,
                                         onLoadDemo = { onLoadProspectIntoDemo(prospect) },
@@ -238,7 +242,11 @@ fun ProspectCrmScreen(
                                     )
                                 }
                             } else {
-                                items(leads, key = { it.id }) { lead ->
+                                items(
+                                    items = leads,
+                                    key = { it.id },
+                                    contentType = { "captured_lead_card" }
+                                ) { lead ->
                                     CapturedLeadCard(
                                         lead = lead,
                                         onShareLead = {

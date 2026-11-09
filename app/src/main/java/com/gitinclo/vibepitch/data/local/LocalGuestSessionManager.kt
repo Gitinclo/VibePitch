@@ -11,12 +11,18 @@ import com.gitinclo.vibepitch.data.model.PipelineStage
 import com.gitinclo.vibepitch.data.model.PlaybookTask
 import com.gitinclo.vibepitch.data.model.ProspectProfile
 import com.gitinclo.vibepitch.domain.InputBoundsValidator
+import com.gitinclo.vibepitch.performance.DimensityCpuScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 class LocalGuestSessionManager(context: Context) {
+
+    private val ufsIoScope = CoroutineScope(SupervisorJob() + DimensityCpuScheduler.ufsSequentialIoDispatcher)
 
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -307,24 +313,41 @@ class LocalGuestSessionManager(context: Context) {
         GuestSessionJsonCodec.decodeProspects(prefs.getString(KEY_GUEST_PROSPECTS, null), GUEST_USER_ID)
 
     private fun saveProspects(list: List<ProspectProfile>) {
-        prefs.edit().putString(KEY_GUEST_PROSPECTS, GuestSessionJsonCodec.encodeProspects(list)).apply()
         _guestProspects.value = list
+        enqueueUfsWrite {
+            prefs.edit().putString(KEY_GUEST_PROSPECTS, GuestSessionJsonCodec.encodeProspects(list)).apply()
+        }
     }
 
     private fun loadLeads(): List<CapturedLead> =
         GuestSessionJsonCodec.decodeLeads(prefs.getString(KEY_GUEST_LEADS, null), GUEST_USER_ID)
 
     private fun saveLeads(list: List<CapturedLead>) {
-        prefs.edit().putString(KEY_GUEST_LEADS, GuestSessionJsonCodec.encodeLeads(list)).apply()
         _guestLeads.value = list
+        enqueueUfsWrite {
+            prefs.edit().putString(KEY_GUEST_LEADS, GuestSessionJsonCodec.encodeLeads(list)).apply()
+        }
     }
 
     private fun loadPlaybookTasks(): List<PlaybookTask> =
         GuestSessionJsonCodec.decodePlaybookTasks(prefs.getString(KEY_GUEST_PLAYBOOK, null), GUEST_USER_ID)
 
     private fun savePlaybookTasks(list: List<PlaybookTask>) {
-        prefs.edit().putString(KEY_GUEST_PLAYBOOK, GuestSessionJsonCodec.encodePlaybookTasks(list)).apply()
         _guestPlaybook.value = list
+        enqueueUfsWrite {
+            prefs.edit().putString(KEY_GUEST_PLAYBOOK, GuestSessionJsonCodec.encodePlaybookTasks(list)).apply()
+        }
+    }
+
+    private fun enqueueUfsWrite(block: () -> Unit) {
+        DimensityCpuScheduler.incrementUfsQueueDepth()
+        ufsIoScope.launch {
+            try {
+                block()
+            } finally {
+                DimensityCpuScheduler.decrementUfsQueueDepth()
+            }
+        }
     }
 
     companion object {

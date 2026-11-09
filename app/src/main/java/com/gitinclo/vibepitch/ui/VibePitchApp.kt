@@ -59,7 +59,12 @@ import com.gitinclo.vibepitch.auth.signOutUser
 import com.gitinclo.vibepitch.data.local.LocalGuestSessionManager
 import com.gitinclo.vibepitch.data.remote.FirebaseEnvValidator
 import com.gitinclo.vibepitch.data.remote.NetworkConnectivityObserver
+import android.app.Activity
+import android.content.ComponentCallbacks2
+import android.content.res.Configuration
+import androidx.compose.runtime.DisposableEffect
 import com.gitinclo.vibepitch.data.repository.VibePitchRepository
+import com.gitinclo.vibepitch.performance.RealmeHardwareOptimizer
 import com.gitinclo.vibepitch.ui.features.auth.Day20MilestoneDialog
 import com.gitinclo.vibepitch.ui.features.auth.Day30ExpiredLockScreen
 import com.gitinclo.vibepitch.ui.features.auth.GuestLifecycleBanner
@@ -69,6 +74,8 @@ import com.gitinclo.vibepitch.ui.features.crm.OfflineStorageNoticeBanner
 import com.gitinclo.vibepitch.ui.features.crm.ProspectCrmScreen
 import com.gitinclo.vibepitch.ui.features.crm.StorageSyncStatusDotChip
 import com.gitinclo.vibepitch.ui.features.livedemo.LiveDemoScreen
+import com.gitinclo.vibepitch.ui.features.performance.HardwareTelemetryTopBarBadge
+import com.gitinclo.vibepitch.ui.features.performance.Realme8HardwareHudDialog
 import com.gitinclo.vibepitch.ui.features.playbook.PlaybookAndPitchScreen
 import com.gitinclo.vibepitch.ui.features.studio.BrandStudioScreen
 import com.gitinclo.vibepitch.ui.theme.EmeraldConversion
@@ -118,11 +125,50 @@ fun VibePitchApp(
     val businessProfile by viewModel.businessProfileState.collectAsStateWithLifecycle()
     val showBusinessUpgradeModal by viewModel.showBusinessUpgradeModal.collectAsStateWithLifecycle()
     val showComplianceDocsModal by viewModel.showComplianceDocsModal.collectAsStateWithLifecycle()
+    val showHardwareHudModal by viewModel.showHardwareHudModal.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val activity = context as? Activity
     val coroutineScope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
+
+    val hardwareOptimizer = remember(context, viewModel) {
+        RealmeHardwareOptimizer(
+            context = context.applicationContext,
+            onClearDomainCaches = viewModel::clearDomainCaches
+        )
+    }
+    val hardwareTelemetry by hardwareOptimizer.telemetry.collectAsStateWithLifecycle()
+
+    LaunchedEffect(hardwareOptimizer) {
+        hardwareOptimizer.bindThermalObserver()
+        hardwareOptimizer.startFrameTelemetry()
+    }
+
+    LaunchedEffect(hardwareTelemetry.refreshRateMode, hardwareTelemetry.isThermalThrottlingActive, activity) {
+        if (activity != null) {
+            hardwareOptimizer.applyWindowRefreshRate(activity, hardwareTelemetry.refreshRateMode)
+        }
+    }
+
+    DisposableEffect(context, hardwareOptimizer) {
+        val appContext = context.applicationContext
+        val callback = object : ComponentCallbacks2 {
+            override fun onTrimMemory(level: Int) {
+                hardwareOptimizer.onTrimMemory(level)
+            }
+            override fun onConfigurationChanged(newConfig: Configuration) = Unit
+            @Deprecated("Deprecated in Java")
+            override fun onLowMemory() {
+                hardwareOptimizer.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+            }
+        }
+        appContext.registerComponentCallbacks(callback)
+        onDispose {
+            appContext.unregisterComponentCallbacks(callback)
+        }
+    }
 
     val connectivityFlow = remember(context) {
         NetworkConnectivityObserver.observeConnectivity(context)
@@ -201,6 +247,12 @@ fun VibePitchApp(
                             )
                         },
                         actions = {
+                            HardwareTelemetryTopBarBadge(
+                                telemetry = hardwareTelemetry,
+                                onClick = { viewModel.openHardwareHudModal() },
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+
                             StorageSyncStatusDotChip(
                                 isDeviceOnline = isDeviceOnline,
                                 isGuestMode = isGuestMode,
@@ -487,6 +539,25 @@ fun VibePitchApp(
     if (showComplianceDocsModal) {
         ComplianceDocsDialog(
             onDismiss = { viewModel.closeComplianceDocsModal() }
+        )
+    }
+
+    if (showHardwareHudModal) {
+        Realme8HardwareHudDialog(
+            telemetry = hardwareTelemetry,
+            onSelectRefreshRateMode = { mode ->
+                hardwareOptimizer.setRefreshRateMode(mode, activity)
+                viewModel.showMessage("Display governor set to ${mode.label}")
+            },
+            onSelectGpuRenderScaleMode = { scaleMode ->
+                hardwareOptimizer.setGpuRenderScaleMode(scaleMode)
+                viewModel.showMessage("Mali-G57 GPU set to ${scaleMode.label}")
+            },
+            onPerformMemoryTrim = {
+                hardwareOptimizer.performMemoryTrim()
+                viewModel.showMessage("4GB LPDDR4X cache purge complete • Zero UI stall")
+            },
+            onDismiss = { viewModel.closeHardwareHudModal() }
         )
     }
 }
