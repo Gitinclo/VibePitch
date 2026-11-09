@@ -64,7 +64,7 @@ import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import androidx.compose.runtime.DisposableEffect
 import com.gitinclo.vibepitch.data.repository.VibePitchRepository
-import com.gitinclo.vibepitch.performance.RealmeHardwareOptimizer
+import com.gitinclo.vibepitch.performance.HardwareGovernor
 import com.gitinclo.vibepitch.ui.features.auth.Day20MilestoneDialog
 import com.gitinclo.vibepitch.ui.features.auth.Day30ExpiredLockScreen
 import com.gitinclo.vibepitch.ui.features.auth.GuestLifecycleBanner
@@ -133,35 +133,35 @@ fun VibePitchApp(
     val coroutineScope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
 
-    val hardwareOptimizer = remember(context, viewModel) {
-        RealmeHardwareOptimizer(
+    val hardwareGovernor = remember(context, viewModel) {
+        HardwareGovernor(
             context = context.applicationContext,
             onClearDomainCaches = viewModel::clearDomainCaches
         )
     }
-    val hardwareTelemetry by hardwareOptimizer.telemetry.collectAsStateWithLifecycle()
+    val hardwareTelemetry by hardwareGovernor.telemetry.collectAsStateWithLifecycle()
 
-    LaunchedEffect(hardwareOptimizer) {
-        hardwareOptimizer.bindThermalObserver()
-        hardwareOptimizer.startFrameTelemetry()
+    LaunchedEffect(hardwareGovernor) {
+        hardwareGovernor.bindThermalObserver()
+        hardwareGovernor.startFrameTelemetry()
     }
 
     LaunchedEffect(hardwareTelemetry.refreshRateMode, hardwareTelemetry.isThermalThrottlingActive, activity) {
         if (activity != null) {
-            hardwareOptimizer.applyWindowRefreshRate(activity, hardwareTelemetry.refreshRateMode)
+            hardwareGovernor.applyWindowRefreshRate(activity, hardwareTelemetry.refreshRateMode)
         }
     }
 
-    DisposableEffect(context, hardwareOptimizer) {
+    DisposableEffect(context, hardwareGovernor) {
         val appContext = context.applicationContext
         val callback = object : ComponentCallbacks2 {
             override fun onTrimMemory(level: Int) {
-                hardwareOptimizer.onTrimMemory(level)
+                hardwareGovernor.onTrimMemory(level)
             }
             override fun onConfigurationChanged(newConfig: Configuration) = Unit
             @Deprecated("Deprecated in Java")
             override fun onLowMemory() {
-                hardwareOptimizer.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
+                hardwareGovernor.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL)
             }
         }
         appContext.registerComponentCallbacks(callback)
@@ -546,18 +546,31 @@ fun VibePitchApp(
         Realme8HardwareHudDialog(
             telemetry = hardwareTelemetry,
             onSelectRefreshRateMode = { mode ->
-                hardwareOptimizer.setRefreshRateMode(mode, activity)
+                hardwareGovernor.setRefreshRateMode(mode, activity)
                 viewModel.showMessage("Display governor set to ${mode.label}")
             },
             onSelectGpuRenderScaleMode = { scaleMode ->
-                hardwareOptimizer.setGpuRenderScaleMode(scaleMode)
+                hardwareGovernor.setGpuRenderScaleMode(scaleMode)
                 viewModel.showMessage("Mali-G57 GPU set to ${scaleMode.label}")
             },
             onPerformMemoryTrim = {
-                hardwareOptimizer.performMemoryTrim()
+                hardwareGovernor.performMemoryTrim()
                 viewModel.showMessage("4GB LPDDR4X cache purge complete • Zero UI stall")
             },
-            onDismiss = { viewModel.closeHardwareHudModal() }
+            onDismiss = { viewModel.closeHardwareHudModal() },
+            onSelectPerformanceProfile = { profile ->
+                hardwareGovernor.setPerformanceProfile(profile, activity)
+                viewModel.showMessage("Dimensity 700 profile set to ${profile.label}")
+            },
+            onToggleThermalFallback = {
+                val fallbackActive = hardwareGovernor.toggleThermalFallback(activity)
+                val statusMsg = if (fallbackActive) {
+                    "60Hz Thermal Fallback engaged (16.6ms budget + 720p fill-rate saver)"
+                } else {
+                    "90Hz Adaptive Mode restored (11.1ms budget + 1080p native shaders)"
+                }
+                viewModel.showMessage(statusMsg)
+            }
         )
     }
 }

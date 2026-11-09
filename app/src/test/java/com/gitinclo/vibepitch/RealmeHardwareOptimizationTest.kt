@@ -13,7 +13,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.gitinclo.vibepitch.performance.DimensityCpuScheduler
+import com.gitinclo.vibepitch.performance.DimensityPerformanceProfile
 import com.gitinclo.vibepitch.performance.GpuRenderScaleMode
+import com.gitinclo.vibepitch.performance.HardwareGovernor
 import com.gitinclo.vibepitch.performance.HardwareTelemetryState
 import com.gitinclo.vibepitch.performance.RealmeHardwareOptimizer
 import com.gitinclo.vibepitch.performance.RefreshRateMode
@@ -66,6 +68,40 @@ class RealmeHardwareOptimizationTest {
     }
 
     @Test
+    fun hardwareGovernor_managesDimensity700ProfilesAndTogglesBetween90HzAnd60HzThermalFallback() {
+        val governor = HardwareGovernor(context)
+        assertEquals(DimensityPerformanceProfile.BALANCED_ADAPTIVE, governor.telemetry.value.performanceProfile)
+        assertEquals(90, governor.telemetry.value.targetFps)
+        assertEquals(11.1f, governor.telemetry.value.frameBudgetMs, 0.01f)
+
+        // Toggle thermal fallback ON -> 60Hz (16.6ms budget) + 720p fill-rate saver
+        val fallbackActive = governor.toggleThermalFallback()
+        assertTrue(fallbackActive)
+        assertEquals(DimensityPerformanceProfile.THERMAL_SAVER_60HZ, governor.telemetry.value.performanceProfile)
+        assertEquals(RefreshRateMode.THERMAL_SAVER_60HZ, governor.telemetry.value.refreshRateMode)
+        assertEquals(60, governor.telemetry.value.targetFps)
+        assertEquals(16.6f, governor.telemetry.value.frameBudgetMs, 0.01f)
+        assertEquals(GpuRenderScaleMode.SAVER_720P_SCALE, governor.telemetry.value.gpuRenderScaleMode)
+        assertFalse(governor.telemetry.value.astcAndMsaaEnabled)
+
+        // Toggle thermal fallback OFF -> restores 90Hz Balanced Adaptive (11.1ms budget) + 1080p native
+        val fallbackAfterRestore = governor.toggleThermalFallback()
+        assertFalse(fallbackAfterRestore)
+        assertEquals(DimensityPerformanceProfile.BALANCED_ADAPTIVE, governor.telemetry.value.performanceProfile)
+        assertEquals(RefreshRateMode.AUTO_90HZ_THERMAL_GUARD, governor.telemetry.value.refreshRateMode)
+        assertEquals(90, governor.telemetry.value.targetFps)
+        assertEquals(11.1f, governor.telemetry.value.frameBudgetMs, 0.01f)
+        assertEquals(GpuRenderScaleMode.NATIVE_1080P, governor.telemetry.value.gpuRenderScaleMode)
+        assertTrue(governor.telemetry.value.astcAndMsaaEnabled)
+
+        // Switch explicitly to HIGH_THROUGHPUT_90HZ profile
+        governor.setPerformanceProfile(DimensityPerformanceProfile.HIGH_THROUGHPUT_90HZ)
+        assertEquals(DimensityPerformanceProfile.HIGH_THROUGHPUT_90HZ, governor.telemetry.value.performanceProfile)
+        assertEquals(RefreshRateMode.LOCKED_90HZ, governor.telemetry.value.refreshRateMode)
+        assertEquals(90, governor.telemetry.value.targetFps)
+    }
+
+    @Test
     fun thermalGovernor_switchesTo60HzAnd720pSaverAtModerateThermalStatus() {
         val optimizer = RealmeHardwareOptimizer(context)
         assertEquals(90, optimizer.telemetry.value.targetFps)
@@ -88,44 +124,48 @@ class RealmeHardwareOptimizationTest {
         assertFalse(recovered.isThermalThrottlingActive)
         assertEquals(90, recovered.targetFps)
         assertEquals(11.1f, recovered.frameBudgetMs, 0.01f)
+        assertEquals(GpuRenderScaleMode.NATIVE_1080P, recovered.gpuRenderScaleMode)
+        assertTrue(recovered.astcAndMsaaEnabled)
     }
 
     @Test
-    fun frameTelemetrySampling_throttlesStateEmissionsTo500msIntervals() {
-        val optimizer = RealmeHardwareOptimizer(context)
+    fun frameTelemetrySampling_throttlesStateEmissionsTo500msIntervalsAndComputesRingBufferStats() {
+        val governor = HardwareGovernor(context)
 
         // Initial frame anchor at t = 1,000ms (1_000_000_000 ns)
-        optimizer.recordFrameSample(1_000_000_000L)
+        governor.recordFrameSample(1_000_000_000L)
 
         // Next frame at t = 1,491ms (within 500ms throttle window -> does not emit UI state yet)
-        optimizer.recordFrameSample(1_491_000_000L)
-        assertEquals(8.2f, optimizer.telemetry.value.lastFrameTimeMs, 0.01f)
+        governor.recordFrameSample(1_491_000_000L)
+        assertEquals(8.2f, governor.telemetry.value.lastFrameTimeMs, 0.01f)
 
         // Frame at t = 1,500.5ms (500ms elapsed since 1,000ms anchor; 9.5ms delta from 1,491ms frame)
-        optimizer.recordFrameSample(1_500_500_000L)
-        assertEquals(9.5f, optimizer.telemetry.value.lastFrameTimeMs, 0.1f)
-        assertTrue(optimizer.telemetry.value.withinFrameBudget)
+        governor.recordFrameSample(1_500_500_000L)
+        assertEquals(9.5f, governor.telemetry.value.lastFrameTimeMs, 0.1f)
+        assertTrue(governor.telemetry.value.rollingAverageFrameTimeMs > 0f)
+        assertTrue(governor.telemetry.value.p95FrameTimeMs >= 9.5f)
+        assertTrue(governor.telemetry.value.withinFrameBudget)
     }
 
     @Test
     @Suppress("DEPRECATION")
     fun memoryTrimEngine_evictsDomainCachesWithoutBlockingOnLowMemoryAndManualPurge() {
         var cacheEvictionCount = 0
-        val optimizer = RealmeHardwareOptimizer(
+        val governor = HardwareGovernor(
             context = context,
             onClearDomainCaches = { cacheEvictionCount++ }
         )
 
-        optimizer.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
+        governor.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
         assertEquals(1, cacheEvictionCount)
         assertEquals(
             "SYSTEM_TRIM_${ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW}",
-            optimizer.telemetry.value.lastMemoryTrimLevel
+            governor.telemetry.value.lastMemoryTrimLevel
         )
 
-        optimizer.performMemoryTrim()
+        governor.performMemoryTrim()
         assertEquals(2, cacheEvictionCount)
-        assertEquals("MANUAL_4GB_PURGE", optimizer.telemetry.value.lastMemoryTrimLevel)
+        assertEquals("MANUAL_4GB_PURGE", governor.telemetry.value.lastMemoryTrimLevel)
     }
 
     @Test

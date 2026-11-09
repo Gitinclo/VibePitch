@@ -25,11 +25,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +50,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gitinclo.vibepitch.performance.DimensityPerformanceProfile
 import com.gitinclo.vibepitch.performance.GpuRenderScaleMode
 import com.gitinclo.vibepitch.performance.HardwareTelemetryState
 import com.gitinclo.vibepitch.performance.RefreshRateMode
@@ -123,7 +126,19 @@ fun Realme8HardwareHudDialog(
     onSelectRefreshRateMode: (RefreshRateMode) -> Unit,
     onSelectGpuRenderScaleMode: (GpuRenderScaleMode) -> Unit,
     onPerformMemoryTrim: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSelectPerformanceProfile: (DimensityPerformanceProfile) -> Unit = { profile ->
+        onSelectRefreshRateMode(profile.defaultRefreshMode)
+        onSelectGpuRenderScaleMode(profile.defaultScaleMode)
+    },
+    onToggleThermalFallback: () -> Unit = {
+        val nextMode = if (telemetry.targetFps > 60) {
+            RefreshRateMode.THERMAL_SAVER_60HZ
+        } else {
+            RefreshRateMode.AUTO_90HZ_THERMAL_GUARD
+        }
+        onSelectRefreshRateMode(nextMode)
+    }
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -159,7 +174,7 @@ fun Realme8HardwareHudDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 1. SoC & Cortex-A76 / Cortex-A55 Thread Affinity Card
+                // 1. Dimensity 700 Performance Profile & CPU Topology Card
                 Card(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
@@ -170,10 +185,10 @@ fun Realme8HardwareHudDialog(
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "CPU Topology & EAS Thread Pinning",
+                            text = "Dimensity 700 Performance Profile & EAS Pinning",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = ElectricIndigo
@@ -184,16 +199,41 @@ fun Realme8HardwareHudDialog(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "• UI Render Loop: 2x Cortex-A76 @ 2.2 GHz (Display Priority)\n" +
+                            text = "• Active Profile: ${telemetry.performanceProfile.label}\n" +
+                                "• UI Render Loop: 2x Cortex-A76 @ 2.2 GHz (Display Priority)\n" +
                                 "• Background Pool: 6x Cortex-A55 @ 2.0 GHz (THREAD_PRIORITY_BACKGROUND)\n" +
                                 "• UFS 2.1 Sequential I/O Queue: ${telemetry.ufsAsyncIoQueueDepth} pending",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            FilterChip(
+                                selected = telemetry.performanceProfile == DimensityPerformanceProfile.HIGH_THROUGHPUT_90HZ,
+                                onClick = { onSelectPerformanceProfile(DimensityPerformanceProfile.HIGH_THROUGHPUT_90HZ) },
+                                label = { Text("90Hz High Throughput", style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.testTag("profile_high_90hz")
+                            )
+                            FilterChip(
+                                selected = telemetry.performanceProfile == DimensityPerformanceProfile.BALANCED_ADAPTIVE,
+                                onClick = { onSelectPerformanceProfile(DimensityPerformanceProfile.BALANCED_ADAPTIVE) },
+                                label = { Text("Balanced Adaptive", style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.testTag("profile_balanced_auto")
+                            )
+                            FilterChip(
+                                selected = telemetry.performanceProfile == DimensityPerformanceProfile.THERMAL_SAVER_60HZ,
+                                onClick = { onSelectPerformanceProfile(DimensityPerformanceProfile.THERMAL_SAVER_60HZ) },
+                                label = { Text("60Hz Thermal Saver", style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.testTag("profile_thermal_60hz")
+                            )
+                        }
                     }
                 }
 
-                // 2. 90Hz Display & Frame-Time Budget Card
+                // 2. 90Hz Display, 500ms-Throttled Telemetry & Thermal Fallback Card
                 Card(
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
@@ -228,10 +268,12 @@ fun Realme8HardwareHudDialog(
                         Text(
                             text = String.format(
                                 Locale.US,
-                                "Target: %d FPS (Budget %.1fms) • Sampled Frame: %.1fms (500ms cadence)",
+                                "Target: %d FPS (Budget %.1fms) • Frame: %.1fms • Avg: %.1fms • P95: %.1fms (500ms cadence)",
                                 telemetry.targetFps,
                                 telemetry.frameBudgetMs,
-                                telemetry.lastFrameTimeMs
+                                telemetry.lastFrameTimeMs,
+                                telemetry.rollingAverageFrameTimeMs,
+                                telemetry.p95FrameTimeMs
                             ),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -280,6 +322,29 @@ fun Realme8HardwareHudDialog(
                                 onClick = { onSelectRefreshRateMode(RefreshRateMode.THERMAL_SAVER_60HZ) },
                                 label = { Text("60Hz Thermal Cap", style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.testTag("refresh_mode_60hz")
+                            )
+                        }
+
+                        FilledTonalButton(
+                            onClick = onToggleThermalFallback,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("toggle_thermal_fallback_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Thermostat,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (telemetry.targetFps > 60) {
+                                    "Engage 60Hz Thermal Fallback (16.6ms Budget)"
+                                } else {
+                                    "Restore 90Hz Adaptive Mode (11.1ms Budget)"
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

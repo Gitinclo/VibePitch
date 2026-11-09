@@ -45,5 +45,5 @@ gradle :app:assembleDebug
 
 All Pull Requests must include:
 - A concise summary of architectural changes.
-- Updated unit or Robolectric tests in `ExampleUnitTest.kt` / `ExampleRobolectricTest.kt` covering new functions and edge cases.
+- Updated unit, Robolectric, or emulator tests in `PitchAndPlaybookValidationTest.kt`, `AuthAndGuestUpgradeTest.kt`, `VibePitchRepositoryTest.kt`, `VibePitchRepositoryRuleTest.kt`, or `RealmeHardwareOptimizationTest.kt` covering new functions and edge cases.
 - Screenshots or screen recordings for any Jetpack Compose UI modifications.

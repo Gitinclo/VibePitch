@@ -8,7 +8,9 @@
 - [x] **6-Part Pitch & Scope Script Generator**: Dynamic generation of cold openers, website gap audits, demo scripts, objection handlers, scope-safe proposals, and referral scripts.
 - [x] **30-Day Guest-to-Business Account Lifecycle**: Local `LocalGuestSessionManager` with Day 20–30 soft upgrade prompts, Day 31+ hard gate, Jetpack `CredentialManager` Google Sign-In, and automatic cloud migration (`migrateGuestDataToCloud`).
 - [x] **Zero-Trust Firestore Rules & Input Hardening**: Strict owner isolation (`request.auth.uid == userId`), enum validation for all 7 `NicheKey` values, and client/server bounds alignment (`InputBoundsValidator`).
-- [x] **Global Compliance & In-App Docs Hub**: Full suite of 8 repository governance/compliance documents and interactive `ComplianceDocsDialog.kt` viewer inside the app.
+- [x] **Global Compliance & In-App Docs Hub**: Full suite of 9 repository governance/compliance/guardrail documents and interactive `ComplianceDocsDialog.kt` viewer inside the app.
+- [x] **Production Modularization & Release Hardening (`com.gitinclo.vibepitch`)**: Decomposed feature-scoped UI packages, explicit `AuthGuardState` / `DataResult<T>` repository contracts, R8 minification & resource shrinking, and 100 Vibe Coding Agent Guardrails Explorer.
+- [x] **Realme 8 5G (Dimensity 700 / 90Hz / 4GB RAM) Hardware Governor & HUD**: Cortex-A76/A55 thread scheduling (`DimensityCpuScheduler`), UFS 2.1 sequential async I/O, 500ms-throttled 90Hz/60Hz thermal display governor, non-destructive Mali-G57 MC2 scaling, and non-blocking 4GB RAM cache trim.
 
 ## 2. Mid-Term Milestones (2027)
 

@@ -37,12 +37,12 @@ enum class ComplianceDocTab(
     README(
         label = "README",
         fileName = "README.md",
-        summaryTitle = "VibePitch Studio Architecture & Overview",
+        summaryTitle = "VibePitch Studio Architecture & Realme 8 5G Governor",
         content = """
-            • Multi-Stream Sales & Pitch Studio supporting 7 turnkey verticals (HOME_TRADES, SALON_AND_CLEANERS, DENTAL_AND_TUTORS, AUTO_DETAILING, BOUTIQUE_FITNESS, ECOMMERCE_SHOPIFY, SAAS_AI_REMEDIATION).
-            • Real-time Quote & Deposit Calculator (0–50,000 setup fee, 0–5,000/mo retainer, 0%–100% deposit).
-            • 6-Part Pitch, Proposal, Scope Guardrail & Referral Script Generator.
-            • 30-Day Local Guest Account to Permanent Cloud Business Account lifecycle.
+            • Decomposed production namespace (com.gitinclo.vibepitch) supporting 7 turnkey verticals across 3 revenue streams.
+            • Realme 8 5G Hardware Governor: Dimensity 700 A76/A55 thread pinning, 90Hz/60Hz thermal display governor, Mali-G57 MC2 non-destructive scaling, 4GB LPDDR4X RAM non-blocking cache trim, and UFS 2.1 sequential async I/O.
+            • Real-time Quote & Deposit Calculator (0–50,000 setup fee, 0–5,000/mo retainer, 0%–100% deposit) + 6-Part Pitch Script Generator.
+            • 30-Day Local Guest Account to Permanent Cloud Business Account lifecycle + 100 Vibe Coding Guardrails Explorer.
         """.trimIndent()
     ),
     SECURITY(
@@ -91,11 +91,11 @@ enum class ComplianceDocTab(
     CONTRIBUTING(
         label = "CONTRIBUTING",
         fileName = "CONTRIBUTING.md",
-        summaryTitle = "Engineering Standards & Emulator Verification",
+        summaryTitle = "Engineering Standards & 31-Test Suite Verification",
         content = """
-            • Conventional Commits and feature-branch workflow.
+            • Conventional Commits and feature-branch workflow under com.gitinclo.vibepitch.
             • Schema synchronization required across VibePitchModels.kt, InputBoundsValidator.kt, firestore.rules, and firestore.test.js.
-            • All PRs must pass Tier 1 (node --test firestore.test.js) and Tier 2 (gradle :app:testDebugUnitTest).
+            • All PRs must pass Tier 1 (node --test firestore.test.js) and Tier 2 (PitchAndPlaybookValidationTest, AuthAndGuestUpgradeTest, VibePitchRepositoryTest, VibePitchRepositoryRuleTest, and RealmeHardwareOptimizationTest).
         """.trimIndent()
     ),
     CODE_OF_CONDUCT(
@@ -113,7 +113,7 @@ enum class ComplianceDocTab(
         fileName = "ROADMAP.md",
         summaryTitle = "Q4 2026, 2027 & Long-Term Product Roadmap",
         content = """
-            • Short-Term (Q4 2026): 7-vertical catalog, 6-script generator, 30-day guest-to-cloud lifecycle, zero-trust Firestore rules, and 9-doc compliance & guardrail suite.
+            • Short-Term (Q4 2026): 7-vertical catalog, 6-script generator, 30-day guest-to-cloud lifecycle, com.gitinclo.vibepitch modular architecture, Realme 8 5G (Dimensity 700 / 90Hz / 4GB RAM) Hardware Governor HUD, and 100 Vibe Coding Guardrails suite.
             • Mid-Term (2027): Branded PDF proposal export with QR payment links, multi-currency presets (USD/EUR/GBP/INR/BRL), offline sync queue, and custom vertical builder.
             • Long-Term (2028+): Multi-seat agency workspaces and shareable client micro-preview links.
         """.trimIndent()
