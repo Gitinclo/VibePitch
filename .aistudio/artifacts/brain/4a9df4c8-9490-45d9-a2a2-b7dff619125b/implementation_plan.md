@@ -1,106 +1,112 @@
-# Realme 8 5G (Dimensity 700 / 90Hz / 4GB RAM) Hardware & Performance Optimization Plan
+# AES-256-GCM Authenticated Encryption & AAD Context Binding Plan
 
-Deliver a dedicated hardware-level optimization layer and interactive **Realme 8 5G Performance & Thermal HUD** tailored to the **MediaTek Dimensity 700 (MT6833)** SoC, **90Hz 1080x2400 (20:9) IPS LCD**, **ARM Mali-G57 MC2 GPU**, **4GB LPDDR4X RAM baseline**, and **UFS 2.1 storage** so VibePitch Studio sustains sub-11.1ms frame times at 90 FPS without secondary recomposition jank, OEM window manager conflicts, memory pressure, or thermal throttling.
-
----
+This plan introduces end-to-end **AES-256-GCM (Galois/Counter Mode)** authenticated encryption (AEAD) across VibePitch Studio's local guest storage and sensitive Cloud Firestore PII fields, backed by a 256-bit Android Keystore master key and an interactive verification inspector in the Compliance & Security Hub.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following hardware optimization and Realme UI 4.0 engineering refinements govern this execution plan:
+> All three architectural choices from our planning discussion have been locked in and incorporated into this specification:
 
-- **Confirmed Decision 1 — Both Background Optimizations & Live HUD Panel**: Implement under-the-hood SoC, RAM, display, and UFS 2.1 I/O optimizations alongside an interactive **Realme 8 5G Hardware Telemetry & Optimizer HUD** accessible from the top app bar.
-- **Confirmed Decision 2 — Auto 90Hz with 60Hz Thermal Fallback + Manual Toggle**: Automatically negotiate the 90Hz display mode (11.1ms frame budget) during normal operation, dynamically drop to a 60Hz (16.6ms) thermal-saver cap when Android `PowerManager` reports `THERMAL_STATUS_MODERATE` or higher, and allow manual user override (`Auto 90Hz/60Hz`, `Lock 90Hz`, `Lock 60Hz Thermal Saver`).
-- **Confirmed Decision 3 — Four Realme UI 4.0 & Compose Engineering Refinements**:
-  1. **Telemetry State Throttling (500ms Cadence)**: Sample `Choreographer` frame times without emitting UI state on every frame (which would force 90 recompositions/sec); throttle `HardwareTelemetryState` emissions to once every **500ms**.
-  2. **Realme UI 4.0 Refresh Rate Locking**: Pair `preferredDisplayModeId` (matching `1080x2400`) with `preferredRefreshRate` (`90f` or `60f`) on `WindowManager.LayoutParams` so Realme UI 4.0 does not override the target refresh mode.
-  3. **Non-Destructive 720p Scaling**: Never mutate global Compose density when `SAVER_720P_SCALE` is active (which would distort `1080x2400` layouts); instead, drop shader complexity, toggle `astcAndMsaaEnabled = (mode == GpuRenderScaleMode.NATIVE_1080P)`, and downsample only heavy background canvas layers.
-  4. **Non-Blocking Heap Trim**: Never invoke explicit stop-the-world `System.gc()` inside `performMemoryTrim()`; instead, evict pitch script and guardrail caches asynchronously via `onClearDomainCaches()` and record updated heap metrics without blocking the UI thread.
+- **Confirmed Decision 1 — Encryption Scope**: **Both Local Guest Storage & Sensitive Cloud Firestore PII Fields** will be protected using AES-256-GCM (`AES/GCM/NoPadding`) with 96-bit (12-byte) unique nonces, 128-bit authentication tags, and URL-safe Base64 `ENCv1:` envelopes.
+- **Confirmed Decision 2 — Key Management**: **Android Keystore Hardware-Backed 256-bit Key with JVM Test Fallback** (`AndroidKeyStore` TEE/StrongBox when running on Android hardware such as the Realme 8 5G Dimensity 700, with automatic deterministic 256-bit `SecretKeySpec` fallback in local JVM/Robolectric unit tests, plus optional PBKDF2-HMAC-SHA256 passphrase key derivation).
+- **Confirmed Decision 3 — UI & Verification Visibility**: **Transparent Storage Encryption + Interactive Compliance Hub Inspector** (`AES-256-GCM` tab inside the Docs & Global Compliance Hub allowing live AEAD payload inspection and AAD tamper verification).
 
 ---
 
 ## 1. Overview & Core Concept
 
 - **What It Does**:
-  - **Cortex-A76 / Cortex-A55 Heterogeneous Thread Pinning (`DimensityCpuScheduler`)**: Keeps UI/Compose frame traversal strictly on the main thread (scheduled on the two 2.2 GHz Cortex-A76 performance cores) while routing JSON serialization, pitch script generation, and 100-guardrail catalog filtering to a bounded 6-thread pool (`a55BackgroundDispatcher`, `THREAD_PRIORITY_BACKGROUND`) for the six 2.0 GHz Cortex-A55 cores, plus a single-thread sequential executor (`ufsSequentialIoDispatcher`, `THREAD_PRIORITY_BACKGROUND`) for non-blocking UFS 2.1 `SharedPreferences`/JSON I/O.
-  - **90Hz Display & Thermal Governor (`RealmeHardwareOptimizer`)**: Queries `Display.supportedModes` on Android 11–13 (Realme UI 4.0) to match `1080x2400` and sets both `preferredDisplayModeId` and `preferredRefreshRate`, binds `PowerManager.OnThermalStatusChangedListener` (`THERMAL_STATUS_MODERATE` triggers automatic 60Hz cap and `SAVER_720P_SCALE`), and samples `Choreographer` frame durations with 500ms UI state throttling.
-  - **4GB LPDDR4X RAM & Compose Stability**: Marks UI state models `@Immutable`, adds explicit `key` and `contentType` parameters to all `LazyColumn` items, caches generated pitch scripts and filtered guardrails with instant eviction on `ComponentCallbacks2.onTrimMemory` (`TRIM_MEMORY_RUNNING_LOW`, `TRIM_MEMORY_UI_HIDDEN`), and provides a non-blocking 1-tap **Purge Cache & Trim 4GB Heap** action.
-  - **Mali-G57 MC2 GPU Fill-Rate Protection**: Uses single-pass flat vector canvas gauges in `Realme8HardwareHudDialog` and the top-bar badge, and dynamically drops background shader complexity and MSAA when `SAVER_720P_SCALE` is active.
-- **Target Audience / Persona**: Agency founders and field sales reps running live client demos on the Realme 8 5G (4GB/64GB and 4GB/128GB models) who require locked 90 FPS responsiveness and zero low-memory crashes.
-- **Key Value**: Sustains sub-11.1ms frame times at 90 FPS while preventing secondary recomposition overhead, Realme UI 4.0 refresh-rate resets, and thermal throttling.
+  - **Cryptographic Core (AES-256-GCM AEAD)**: Encrypts sensitive application data using a 256-bit key, generating a fresh cryptographically secure 12-byte (96-bit) nonce via `SecureRandom` for every encryption call and appending a 16-byte (128-bit) GCM authentication tag into a compact URL-safe Base64 token (`ENCv1:<base64url(nonce + ciphertext + tag)>`).
+  - **Context Binding via AAD (Associated Authenticated Data)**: Binds every encrypted payload to its immutable owner and record scope (e.g., `user_id:<uid>:prospects` or `guest_prefs:local_guest_user:<key>`) so ciphertext cannot be transplanted across users, collections, or records without triggering an immediate authentication tag failure (`AEADBadTagException`).
+  - **Dual-Layer Persistence Protection**:
+    - **Local Guest Storage**: Encrypts serialized JSON payloads for guest prospects, captured leads, playbook tasks, and pending business upgrade drafts stored in local preferences.
+    - **Cloud Firestore PII Fields**: Transparently encrypts sensitive PII fields (`businessEmail`, `businessPhone`, `contactName`, `websiteGapNote`, `customerName`, `customerPhone`, `customerEmail`, and `notes`) before cloud transmission and decrypts them upon snapshot observation, while keeping structural routing fields (`userId`, `nicheKey`, `stage`, numeric pricing bounds) queryable and validated by Firestore Security Rules.
+- **Target Audience / Persona**: Agency owners, freelancers, and security-conscious B2B consultants running live client demos on Android devices (optimized for the Realme 8 5G baseline).
+- **Key Value**: Guarantees both confidentiality and cryptographic integrity against tampering or cross-record ciphertext replay without degrading the 90Hz (`11.1ms` budget) UI render loop.
 
 ---
 
 ## 2. User Experience & Visual Design
 
 - **Key User Flows**:
-  1. **Automatic Boot & Realme UI 4.0 Refresh Negotiation**: On launch, `MainActivity` binds `RealmeHardwareOptimizer`, applies both `preferredDisplayModeId` and `preferredRefreshRate` for `1080x2400 @ 90Hz`, starts the 500ms-throttled `Choreographer` frame monitor, and routes `LocalGuestSessionManager` JSON writes through `DimensityCpuScheduler.ufsSequentialIoDispatcher`.
-  2. **Top-Bar Hardware Telemetry Pill (`90Hz • 8.2ms`)**: A compact, single-pass status badge in the top app bar displays the active refresh target (`90Hz` or `60Hz Cap`), throttled frame duration, and thermal status. Tapping it opens `Realme8HardwareHudDialog`.
-  3. **Interactive Realme 8 5G Optimizer HUD (`Realme8HardwareHudDialog`)**:
-     - **SoC & Thread Affinity Card**: Visualizes **MediaTek Dimensity 700 (2x A76 @ 2.2GHz + 6x A55 @ 2.0GHz)**, the 6-worker Cortex-A55 background pool, and the sequential UFS 2.1 I/O queue depth.
-     - **Display & Frame-Time Budget Card**: Displays live 500ms-sampled frame duration against the **11.1ms (90 FPS)** and **16.6ms (60 FPS)** budgets using a single-pass flat vector gauge, plus interactive chips for **Auto (90Hz w/ Thermal Guard)**, **Locked 90Hz**, and **60Hz Thermal Saver**.
-     - **Mali-G57 MC2 GPU & Non-Destructive Render Scale Card**: Shows **ARM Mali-G57 MC2 @ 955MHz (Vulkan 1.1 / OpenGL ES 3.2)** status, `ASTC / 4x MSAA` state, and a toggle between **Native 1080p (`NATIVE_1080P`)** and **720p Fill-Rate Saver (`SAVER_720P_SCALE`)** without distorting Compose layout density.
-     - **4GB LPDDR4X RAM & Non-Blocking Cache Trim Card**: Shows live heap usage (`ramUsedMb / ramMaxMb`), last trim level (`NORMAL`, `SYSTEM_TRIM_*`, `MANUAL_4GB_PURGE`), and a **Purge Domain Caches (4GB Trim)** button.
+  1. **Zero-Friction Transparent Encryption**: Creating prospects in Brand Studio, capturing client leads in Live Demo, or staging a Business Account automatically encrypts sensitive fields using AES-256-GCM on background Cortex-A55 threads before writing to UFS 2.1 storage or Cloud Firestore.
+  2. **Graceful Legacy Migration**: Existing unencrypted local or cloud records (lacking the `ENCv1:` prefix) are transparently read and upgraded to `ENCv1:` AES-256-GCM ciphertext on the next write operation.
+  3. **Interactive AES-256-GCM Compliance Inspector**: Tapping the shield icon in the top app bar opens the **Docs & Global Compliance Hub**, which now features a dedicated **`AES-256-GCM`** tab with a live interactive verification card:
+     - Displays active key provider status (`AndroidKeyStore 256-bit AES-GCM` vs. `JVM 256-bit Test Key`), nonce length (`96-bit / 12B`), and tag length (`128-bit / 16B`).
+     - Lets the user run a live **Encrypt + AAD Verify** test or simulate an **AAD Context Tamper Attack** to observe real-time `AEADBadTagException` rejection.
 - **Visual Identity & Theme**:
-  - *Aesthetic Direction*: High-contrast hardware telemetry integrated with VibePitch Studio's Obsidian Slate (`#0B0F19`), Electric Indigo (`#6366F1`), and Emerald Conversion (`#10B981`) theme.
-  - *GPU-Friendly Styling*: Single-pass flat vector progress bars and crisp 1.dp borders that preserve Mali-G57 MC2 fill rate.
+  - **Aesthetic Direction**: High-contrast dark fintech/security telemetry matching VibePitch's `ElectricIndigo` (`#6366F1`), `EmeraldConversion` (`#10B981`), and `AmberHighlight` (`#F59E0B`) palette.
+  - **Component Styling & Layout**: Single-pass Material 3 cards with monospace Base64url ciphertext previews, status badges, and 48dp+ accessible touch targets that preserve Mali-G57 MC2 fill-rate budgets.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: 500ms Throttled Choreographer Telemetry**
-  - *Chosen Approach*: Track every frame's `frameTimeNanos` delta in `Choreographer.FrameCallback`, but only update `_telemetry` when `nowMs - lastUiEmitTimestampMs >= 500L`.
-  - *Why*: Emitting new `StateFlow` values at 90Hz would trigger 90 Compose recompositions per second, defeating the 11.1ms frame budget.
-- **Decision 2: Dual `preferredDisplayModeId` + `preferredRefreshRate` Window Locking**
-  - *Chosen Approach*: Filter `display.supportedModes` for `physicalWidth == 1080 && physicalHeight == 2400`, pick the mode closest to `targetHz`, set `params.preferredDisplayModeId = matchedMode.modeId`, and also set `params.preferredRefreshRate = targetHz`.
-  - *Why*: Realme UI 4.0 frequently ignores `preferredDisplayModeId` unless `preferredRefreshRate` is explicitly set on the window attributes.
-- **Decision 3: Non-Destructive `SAVER_720P_SCALE` & Non-Blocking Cache Trim**
-  - *Chosen Approach*: Toggle `astcAndMsaaEnabled = (mode == GpuRenderScaleMode.NATIVE_1080P)` and simplify background canvas/gradient shaders without altering `LocalDensity`, and evict cached pitch scripts/guardrails via `onClearDomainCaches()` without calling `System.gc()`.
-  - *Why*: Preserves crisp `1080x2400` UI geometry and avoids stop-the-world GC pauses on the 4GB RAM model.
+- **Decision 1: Field-Level PII Encryption in Firestore vs. Whole-Document Blob Encryption**
+  - *Chosen Approach*: Selective field-level AES-256-GCM encryption for PII and free-text notes (`businessEmail`, `businessPhone`, `contactName`, `websiteGapNote`, `customerName`, `customerPhone`, `customerEmail`, `notes`), paired with `userId`/collection AAD binding.
+  - *Why*: Preserves server-side zero-trust Firestore Security Rules validation on `userId`, `nicheKey`, `stage`, `depositPercent`, `setupFeeOffer`, and `monthlyRetainerOffer` while rendering all personal contact details and client notes unreadable at rest in the database.
+  - *Alternatives Considered*: Encrypting the entire document into a single opaque blob would break Firestore query filters and server-side numeric bounds enforcement in `firestore.rules`.
+
+- **Decision 2: Self-Describing `ENCv1:` Envelope Prefix**
+  - *Chosen Approach*: Prefix all Base64url-encoded `(12-byte IV + Ciphertext + 16-byte GCM Tag)` payloads with `ENCv1:`.
+  - *Why*: Allows deterministic detection of encrypted payloads, seamless backward compatibility with pre-existing starter/seed data, and zero-downtime migration.
+
+- **Decision 3: Offloading AES-256-GCM Operations to Cortex-A55 Background Threads**
+  - *Chosen Approach*: Execute local preference encryption on `DimensityCpuScheduler.ufsSequentialIoDispatcher` and repository payload encryption within coroutine pipelines outside the main UI render loop.
+  - *Why*: Protects the 11.1ms (90Hz) frame-time budget on the Realme 8 5G's two Cortex-A76 cores.
 
 ---
 
 ## 4. Technical Architecture & Data Strategy *(Technical Reference)*
 
-### Architecture & Component Diagram
+### Architecture & Cryptographic Data Flow Diagram
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│            MainActivity (Realme UI 4.0 Window & Trim Callbacks)            │
-│  • preferredDisplayModeId + preferredRefreshRate (90f <-> 60f)             │
-│  • ComponentCallbacks2.onTrimMemory -> optimizer.onTrimMemory(level)       │
-└─────────────────────────────────────┬──────────────────────────────────────┘
-                                      │
-                                      ▼
+│                   UI & Presentation Layer (90Hz A76 Loop)                  │
+│  ┌──────────────────────────────┐      ┌────────────────────────────────┐  │
+│  │ LiveDemo / BrandStudio / CRM │      │ Compliance & Security Hub      │  │
+│  │ (Plaintext Domain Models)    │      │ + Live AES-256-GCM Inspector   │  │
+│  └──────────────┬───────────────┘      └───────────────┬────────────────┘  │
+└─────────────────┼──────────────────────────────────────┼───────────────────┘
+                  │                                      │
+                  ▼                                      ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                 RealmeHardwareOptimizer & DimensityCpuScheduler            │
-├────────────────────────┬─────────────────────────┬─────────────────────────┤
-│ DimensityCpuScheduler  │ 90Hz & Thermal Governor │ 4GB RAM & GPU Guardrail │
-│ • 6x A55 Worker Pool   │ • 500ms Frame Sampling  │ • Non-Blocking Trim     │
-│   (PRIORITY_BACKGROUND)│ • 11.1ms / 16.6ms Budget│ • Non-Destructive 720p  │
-│ • 1x UFS 2.1 Seq I/O   │ • Thermal >= MODERATE   │ • ASTC & 4x MSAA Toggle │
-└──────────┬─────────────┴────────────┬────────────┴────────────┬────────────┘
-           │                          │                         │
-           ▼                          ▼                         ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│             VibePitchViewModel & LocalGuestSessionManager                  │
-│  • Routes UFS 2.1 JSON writes via ufsSequentialIoDispatcher                │
-│  • Caches generated PitchScripts; flushes on onClearDomainCaches()         │
-│  • Exposes HardwareTelemetryState to TopAppBar & Realme8HardwareHudDialog  │
-└─────────────────────────────────────┬──────────────────────────────────────┘
-                                      │
-                                      ▼
-┌────────────────────────────────────────────────────────────────────────────┐
-│             Jetpack Compose 90Hz UI & Realme8HardwareHudDialog             │
-│  • @Immutable UI models + LazyColumn keys/contentTypes                     │
-│  • Single-pass flat vector telemetry gauges (Mali-G57 MC2 friendly)        │
-└────────────────────────────────────────────────────────────────────────────┘
+│                AES-256-GCM Cryptographic Engine (AEAD Core)                │
+│  • Cipher: AES/GCM/NoPadding (256-bit Key, 96-bit Nonce, 128-bit Auth Tag) │
+│  • Nonce RNG: Fresh 12-byte SecureRandom per encrypt() invocation          │
+│  • Context Binding: cipher.updateAAD("userId:collection" UTF-8 bytes)      │
+│  • Envelope Format: "ENCv1:" + Base64UrlNoPad(12B Nonce || Ciphertext+Tag) │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │ Key Provider: AndroidKeyStore ("vibe_pitch_aes256_master_key")       │  │
+│  │ Fallback: Ephemeral/Deterministic 256-bit SecretKeySpec for JVM Test │  │
+│  │ Optional KDF: PBKDF2WithHmacSHA256 (256-bit, 16B Salt)               │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────┬──────────────────────────────┬───────────────────┘
+                          │                              │
+        ┌─────────────────┘                              └─────────────────┐
+        ▼                                                                  ▼
+┌───────────────────────────────────────┐  ┌───────────────────────────────────────┐
+│   Local Guest Storage (UFS 2.1 I/O)   │  │   Cloud Firestore Repository Layer    │
+│ • Encrypts Prospects, Leads, Playbook │  │ • Encrypts PII fields before write:   │
+│   & Pending Business Profile JSON     │  │   contactName, websiteGapNote,        │
+│ • Bound to AAD:                       │  │   customerName/Phone/Email, notes,    │
+│   "guest_prefs:local_guest_user:<key>"│  │   businessEmail, businessPhone        │
+│ • Runs on ufsSequentialIoDispatcher   │  │ • Bound to AAD: "users/<uid>/<coll>"  │
+└───────────────────────────────────────┘  └───────────────────────────────────────┘
 ```
 
-### Phase-by-Phase Execution Roadmap
-1. **Phase 1 — SoC & UFS 2.1 I/O Setup**: Implement `DimensityCpuScheduler` (6-thread `a55BackgroundDispatcher` + single-thread `ufsSequentialIoDispatcher` at `Process.THREAD_PRIORITY_BACKGROUND`) and route `LocalGuestSessionManager` JSON persistence through the sequential UFS 2.1 dispatcher with queue depth tracking.
-2. **Phase 2 — 90Hz Display & Thermal Governor**: Implement `RealmeHardwareOptimizer` with 500ms-throttled `Choreographer` frame telemetry, dual `preferredDisplayModeId` + `preferredRefreshRate` window negotiation, and `PowerManager.OnThermalStatusChangedListener` triggering 60Hz + `SAVER_720P_SCALE` fallback at `THERMAL_STATUS_MODERATE`.
-3. **Phase 3 — 4GB RAM & Compose Stability**: Annotate UI state classes with `@Immutable`, add `key` and `contentType` to all `LazyColumn` items across CRM and Playbook screens, memoize pitch script generation in `VibePitchViewModel`, and wire `ComponentCallbacks2.onTrimMemory` in `MainActivity` to flush domain caches without blocking UI.
-4. **Phase 4 — HUD & Top-Bar Telemetry UI**: Build the top-bar `HardwareTelemetryBadge` (`hardware_telemetry_chip`) and `Realme8HardwareHudDialog` using single-pass flat vector gauges and interactive controls for `RefreshRateMode`, `GpuRenderScaleMode`, and `performMemoryTrim()`.
-5. **Phase 5 — Automated Verification**: Implement `RealmeHardwareOptimizationTest` to verify A55 background thread priority (`Process.THREAD_PRIORITY_BACKGROUND`), thermal status transitions (`THERMAL_STATUS_MODERATE` -> 60 FPS / 16.6ms budget / `SAVER_720P_SCALE`), non-blocking memory trim handling (`onTrimMemory` & `performMemoryTrim`), and HUD Compose controls.
+### Interactive Component & State Mapping
+
+- **AES-256-GCM Crypto Engine**:
+  - `encrypt(plaintext: String, associatedData: String? = null): String`: Generates a fresh 12-byte IV via `SecureRandom`, initializes `AES/GCM/NoPadding` with `GCMParameterSpec(128, iv)`, binds `associatedData` via `cipher.updateAAD(...)` when non-empty, and returns `"ENCv1:" + Base64Url(iv + ciphertextAndTag)`.
+  - `decrypt(token: String, associatedData: String? = null): Result<String>`: Validates and strips the `"ENCv1:"` prefix (or returns raw plaintext if unprefixed legacy data), extracts the 12-byte nonce and remaining `ciphertext + 16-byte tag`, binds `associatedData`, and verifies the 128-bit GCM authentication tag before returning UTF-8 plaintext.
+  - `decryptOrFallback(token: String, associatedData: String? = null): String`: Safely decrypts `ENCv1:` tokens or falls back cleanly if a legacy record is encountered.
+- **Firestore Schema & Security Rules Alignment**:
+  - Updates maximum string size constraints on encrypted PII fields in `firestore.rules` (and `firebase-blueprint.json`) to accommodate the `ENCv1:` Base64url expansion (`12B Nonce + Ciphertext + 16B Tag`) while keeping strict ownership (`request.auth.uid == userId`), required keys, and numeric range checks intact.
+- **Automated Verification Suite**:
+  - Adds unit and Robolectric tests verifying:
+    1. Unique 12-byte nonce generation across identical plaintexts (never reusing nonces).
+    2. Round-trip encryption/decryption with AAD context binding.
+    3. Cryptographic rejection (`Result.isFailure` / `AEADBadTagException`) when ciphertext bytes or AAD context (`user_id:attacker` vs. `user_id:owner`) are tampered with.
+    4. End-to-end encryption at rest in `LocalGuestSessionManager` and `VibePitchRepository`.

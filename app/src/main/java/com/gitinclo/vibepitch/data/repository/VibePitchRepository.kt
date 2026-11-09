@@ -15,6 +15,7 @@ import com.gitinclo.vibepitch.data.remote.FirebaseEnvValidator
 import com.gitinclo.vibepitch.data.remote.OperationType
 import com.gitinclo.vibepitch.data.remote.handleFirestoreError
 import com.gitinclo.vibepitch.domain.InputBoundsValidator
+import com.gitinclo.vibepitch.security.Aes256GcmCryptoEngine
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
@@ -90,6 +91,7 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
         }
         val resolvedUid = guard.userId
         val path = "users/$resolvedUid/businessProfile/profile"
+        val profileAad = buildCollectionAad(resolvedUid, "businessProfile")
         emitAll(
             firestore.collection("users").document(resolvedUid)
                 .collection("businessProfile").document("profile")
@@ -99,7 +101,9 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
                         snapshot.toObject(
                             BusinessAccountProfile::class.java,
                             DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                        )
+                        )?.let { rawProfile ->
+                            decryptBusinessProfile(rawProfile, profileAad)
+                        }
                     } else {
                         null
                     }
@@ -121,6 +125,7 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
     suspend fun saveBusinessProfile(profile: BusinessAccountProfile): Result<Unit> {
         val firestore = resolveFirestoreInstance().getOrElse { return Result.failure(it) }
         val uid = resolveAuthenticatedUserId(profile.userId).getOrElse { return Result.failure(it) }
+        val profileAad = buildCollectionAad(uid, "businessProfile")
         return runCatching {
             val docRef = firestore.collection("users").document(uid)
                 .collection("businessProfile").document("profile")
@@ -129,12 +134,14 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
             } catch (_: Exception) {
                 null
             }
+            val sanitizedEmail = profile.businessEmail.trim().take(120)
+            val sanitizedPhone = profile.businessPhone.trim().take(40)
             val payload = mapOf(
                 "userId" to uid,
                 "agencyName" to InputBoundsValidator.sanitizeBusinessName(profile.agencyName).ifBlank { "My VibePitch Studio" },
                 "ownerName" to InputBoundsValidator.sanitizeContactName(profile.ownerName).ifBlank { "Owner" },
-                "businessEmail" to profile.businessEmail.trim().take(120),
-                "businessPhone" to profile.businessPhone.trim().take(40),
+                "businessEmail" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(sanitizedEmail, profileAad),
+                "businessPhone" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(sanitizedPhone, profileAad),
                 "primaryNicheKey" to profile.primaryNicheKey,
                 "websiteUrl" to profile.websiteUrl.trim().take(200),
                 "upgradedFromGuest" to profile.upgradedFromGuest,
@@ -164,6 +171,7 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
         }
         val resolvedUid = guard.userId
         val path = "users/$resolvedUid/prospects"
+        val prospectsAad = buildCollectionAad(resolvedUid, "prospects")
         emitAll(
             firestore.collection("users").document(resolvedUid).collection("prospects")
                 .whereEqualTo("userId", resolvedUid)
@@ -172,7 +180,9 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
                     snapshot.toObjects(
                         ProspectProfile::class.java,
                         DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                    ).sortedByDescending { it.updatedAt ?: it.createdAt ?: Timestamp(0, 0) }
+                    )
+                        .map { decryptProspect(it, prospectsAad) }
+                        .sortedByDescending { it.updatedAt ?: it.createdAt ?: Timestamp(0, 0) }
                 }
                 .catch { error ->
                     val firestoreError = generateSequence(error) { it.cause }
@@ -197,6 +207,7 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
         }
         val resolvedUid = guard.userId
         val path = "users/$resolvedUid/leads"
+        val leadsAad = buildCollectionAad(resolvedUid, "leads")
         emitAll(
             firestore.collection("users").document(resolvedUid).collection("leads")
                 .whereEqualTo("userId", resolvedUid)
@@ -205,7 +216,9 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
                     snapshot.toObjects(
                         CapturedLead::class.java,
                         DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                    ).sortedByDescending { it.createdAt ?: Timestamp(0, 0) }
+                    )
+                        .map { decryptLead(it, leadsAad) }
+                        .sortedByDescending { it.createdAt ?: Timestamp(0, 0) }
                 }
                 .catch { error ->
                     val firestoreError = generateSequence(error) { it.cause }
@@ -257,6 +270,7 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
     suspend fun createProspect(prospect: ProspectProfile): Result<String> {
         val firestore = resolveFirestoreInstance().getOrElse { return Result.failure(it) }
         val uid = resolveAuthenticatedUserId(prospect.userId).getOrElse { return Result.failure(it) }
+        val prospectsAad = buildCollectionAad(uid, "prospects")
         return runCatching {
             val sanitizedId = prospect.id.replace(Regex("[^a-zA-Z0-9_\\-]"), "")
             val docRef = if (sanitizedId.isNotBlank()) {
@@ -264,12 +278,14 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
             } else {
                 firestore.collection("users").document(uid).collection("prospects").document()
             }
+            val cleanContactName = InputBoundsValidator.sanitizeContactName(prospect.contactName)
+            val cleanGapNote = InputBoundsValidator.sanitizeWebsiteGapNote(prospect.websiteGapNote)
             val payload = mapOf(
                 "userId" to uid,
                 "businessName" to InputBoundsValidator.sanitizeBusinessName(prospect.businessName).ifBlank { "Local Prospect" },
-                "contactName" to InputBoundsValidator.sanitizeContactName(prospect.contactName),
+                "contactName" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanContactName, prospectsAad),
                 "nicheKey" to prospect.nicheKey,
-                "websiteGapNote" to InputBoundsValidator.sanitizeWebsiteGapNote(prospect.websiteGapNote),
+                "websiteGapNote" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanGapNote, prospectsAad),
                 "brandColorHex" to prospect.brandColorHex.trim().take(12),
                 "tagline" to InputBoundsValidator.sanitizeTagline(prospect.tagline),
                 "depositPercent" to InputBoundsValidator.clampDepositPercentLong(prospect.depositPercent),
@@ -296,12 +312,14 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
         if (targetUserId.isBlank() || prospectId.isBlank()) {
             return Result.failure(IllegalArgumentException("targetUserId and prospectId must not be blank"))
         }
+        val prospectsAad = buildCollectionAad(targetUserId, "prospects")
         return runCatching {
             val docRef = firestore.collection("users").document(targetUserId)
                 .collection("prospects").document(prospectId)
             try {
                 val snap = docRef.get().await()
                 snap.toObject(ProspectProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                    ?.let { decryptProspect(it, prospectsAad) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -317,13 +335,16 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
         if (prospect.id.isBlank()) {
             return Result.failure(IllegalArgumentException("Prospect ID must not be blank for update"))
         }
+        val prospectsAad = buildCollectionAad(uid, "prospects")
         return runCatching {
             val docRef = firestore.collection("users").document(uid).collection("prospects").document(prospect.id)
+            val cleanContactName = InputBoundsValidator.sanitizeContactName(prospect.contactName)
+            val cleanGapNote = InputBoundsValidator.sanitizeWebsiteGapNote(prospect.websiteGapNote)
             val updates = mapOf(
                 "businessName" to InputBoundsValidator.sanitizeBusinessName(prospect.businessName),
-                "contactName" to InputBoundsValidator.sanitizeContactName(prospect.contactName),
+                "contactName" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanContactName, prospectsAad),
                 "nicheKey" to prospect.nicheKey,
-                "websiteGapNote" to InputBoundsValidator.sanitizeWebsiteGapNote(prospect.websiteGapNote),
+                "websiteGapNote" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanGapNote, prospectsAad),
                 "brandColorHex" to prospect.brandColorHex.trim().take(12),
                 "tagline" to InputBoundsValidator.sanitizeTagline(prospect.tagline),
                 "depositPercent" to InputBoundsValidator.clampDepositPercentLong(prospect.depositPercent),
@@ -365,23 +386,28 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
     suspend fun submitLead(lead: CapturedLead): Result<String> {
         val firestore = resolveFirestoreInstance().getOrElse { return Result.failure(it) }
         val uid = resolveAuthenticatedUserId(lead.userId).getOrElse { return Result.failure(it) }
+        val leadsAad = buildCollectionAad(uid, "leads")
         return runCatching {
             val docRef = firestore.collection("users").document(uid).collection("leads").document()
+            val cleanCustomerName = InputBoundsValidator.sanitizeContactName(lead.customerName).ifBlank { "Client" }
+            val cleanCustomerPhone = lead.customerPhone.trim().take(40).ifBlank { "N/A" }
+            val cleanCustomerEmail = lead.customerEmail.trim().take(120)
+            val cleanNotes = InputBoundsValidator.sanitizeNotes(lead.notes)
             val payload = mapOf(
                 "userId" to uid,
                 "prospectId" to lead.prospectId.take(128),
                 "prospectBusinessName" to InputBoundsValidator.sanitizeBusinessName(lead.prospectBusinessName).ifBlank { "Local Demo Business" },
                 "nicheKey" to lead.nicheKey,
-                "customerName" to InputBoundsValidator.sanitizeContactName(lead.customerName),
-                "customerPhone" to lead.customerPhone.trim().take(40),
-                "customerEmail" to lead.customerEmail.trim().take(120),
+                "customerName" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanCustomerName, leadsAad),
+                "customerPhone" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanCustomerPhone, leadsAad),
+                "customerEmail" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanCustomerEmail, leadsAad),
                 "preferredDate" to lead.preferredDate.trim().take(80),
                 "selectedServiceName" to lead.selectedServiceName.trim().take(120),
                 "selectedAddOns" to lead.selectedAddOns.trim().take(300),
                 "unitQuantity" to lead.unitQuantity.coerceIn(1L, 100000L),
                 "estimatedTotal" to lead.estimatedTotal.coerceIn(0L, 1000000L),
                 "depositAmount" to lead.depositAmount.coerceIn(0L, 1000000L),
-                "notes" to InputBoundsValidator.sanitizeNotes(lead.notes),
+                "notes" to Aes256GcmCryptoEngine.encryptFieldIfNotEmpty(cleanNotes, leadsAad),
                 "createdAt" to FieldValue.serverTimestamp(),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
@@ -521,4 +547,33 @@ class VibePitchRepository(private val db: FirebaseFirestore? = null) {
             }
         }
     }
+
+    private fun buildCollectionAad(userId: String, collection: String): String =
+        "users/$userId/$collection"
+
+    private fun decryptBusinessProfile(
+        profile: BusinessAccountProfile,
+        aad: String
+    ): BusinessAccountProfile = profile.copy(
+        businessEmail = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(profile.businessEmail, aad),
+        businessPhone = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(profile.businessPhone, aad)
+    )
+
+    private fun decryptProspect(
+        prospect: ProspectProfile,
+        aad: String
+    ): ProspectProfile = prospect.copy(
+        contactName = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(prospect.contactName, aad),
+        websiteGapNote = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(prospect.websiteGapNote, aad)
+    )
+
+    private fun decryptLead(
+        lead: CapturedLead,
+        aad: String
+    ): CapturedLead = lead.copy(
+        customerName = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(lead.customerName, aad),
+        customerPhone = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(lead.customerPhone, aad),
+        customerEmail = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(lead.customerEmail, aad),
+        notes = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(lead.notes, aad)
+    )
 }

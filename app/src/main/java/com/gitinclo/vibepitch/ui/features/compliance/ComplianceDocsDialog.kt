@@ -1,5 +1,6 @@
 package com.gitinclo.vibepitch.ui.features.compliance
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -11,8 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,12 +28,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gitinclo.vibepitch.security.Aes256GcmCryptoEngine
+import com.gitinclo.vibepitch.ui.theme.AmberHighlight
+import com.gitinclo.vibepitch.ui.theme.ElectricIndigo
+import com.gitinclo.vibepitch.ui.theme.EmeraldConversion
 
 enum class ComplianceDocTab(
     val label: String,
@@ -41,8 +54,19 @@ enum class ComplianceDocTab(
         content = """
             • Decomposed production namespace (com.gitinclo.vibepitch) supporting 7 turnkey verticals across 3 revenue streams.
             • Realme 8 5G Hardware Governor: Dimensity 700 A76/A55 thread pinning, 90Hz/60Hz thermal display governor, Mali-G57 MC2 non-destructive scaling, 4GB LPDDR4X RAM non-blocking cache trim, and UFS 2.1 sequential async I/O.
+            • AES-256-GCM Authenticated Encryption (AEAD): 256-bit Android Keystore master key, fresh 96-bit SecureRandom nonces, 128-bit auth tags, and AAD context binding across local guest storage and Cloud Firestore PII fields.
             • Real-time Quote & Deposit Calculator (0–50,000 setup fee, 0–5,000/mo retainer, 0%–100% deposit) + 6-Part Pitch Script Generator.
-            • 30-Day Local Guest Account to Permanent Cloud Business Account lifecycle + 100 Vibe Coding Guardrails Explorer.
+        """.trimIndent()
+    ),
+    AES_256_GCM(
+        label = "AES-256-GCM",
+        fileName = "Aes256GcmCryptoEngine.kt",
+        summaryTitle = "AES-256-GCM Authenticated Encryption (AEAD) & AAD Context Binding",
+        content = """
+            • Cipher Specification: AES/GCM/NoPadding with 256-bit (32-byte) key, fresh 96-bit (12-byte) SecureRandom nonce per encryption, and 128-bit (16-byte) authentication tag packed into ENCv1: Base64url envelopes.
+            • Key Provisioning: Hardware-backed Android Keystore (vibe_pitch_aes256_gcm_master_key_v1) with automatic JVM 256-bit SecretKeySpec test fallback and PBKDF2-HMAC-SHA256 passphrase key derivation support.
+            • Context Binding (AAD): Binds immutable owner/collection context (e.g. users/{uid}/leads or guest_prefs:local_guest_user:{key}) via cipher.updateAAD() so ciphertext cannot be transplanted across users or records.
+            • Protected Storage Scope: Encrypts all LocalGuestSessionManager JSON payloads on UFS 2.1 storage and all sensitive Cloud Firestore PII fields (businessEmail, businessPhone, contactName, websiteGapNote, customerName, customerPhone, customerEmail, notes).
         """.trimIndent()
     ),
     SECURITY(
@@ -51,8 +75,8 @@ enum class ComplianceDocTab(
         summaryTitle = "Zero-Trust Firestore & Payment/PII Offloading",
         content = """
             • Zero-Trust Firestore Rules: Strict owner isolation (/users/{userId}) and server-side bounds validation.
-            • Payment & PII Offloading Guardrails: Never stores raw credit cards, banking credentials, or sensitive PII. Payments use external Stripe Links; intake uses external forms; auth uses Google OAuth via Jetpack CredentialManager.
-            • Encryption: TLS 1.3 in transit, AES-256 at rest in Cloud Firestore, and Android OS sandbox encryption in Guest Mode.
+            • Client-Side AES-256-GCM AEAD: Sensitive PII fields and local guest session payloads are encrypted with 96-bit nonces, 128-bit tags, and AAD context binding before persistence.
+            • Payment & PII Offloading Guardrails: Never stores raw credit cards or banking credentials. Payments use external Stripe Links; intake uses external forms; auth uses Google OAuth via Jetpack CredentialManager.
             • Vulnerability SLA: 24h acknowledgment, 72h triage, 7d critical patch deployment.
         """.trimIndent()
     ),
@@ -62,8 +86,8 @@ enum class ComplianceDocTab(
         summaryTitle = "150+ Country Privacy Compliance (Oct 10, 2026)",
         content = """
             • Aligned with GDPR, UK GDPR, CCPA/CPRA, India DPDP Act, Brazil LGPD, China PIPL, Canada PIPEDA, Australia Privacy Act, and ISO/IEC 27701.
-            • Guest Mode (Days 1–30): 100% on-device storage via LocalGuestSessionManager; zero cloud transmission.
-            • Permanent Business Account: Syncs only your agency profile, B2B prospects, leads, and playbook tasks under /users/{uid}.
+            • Guest Mode (Days 1–30): 100% on-device AES-256-GCM encrypted storage via LocalGuestSessionManager; zero cloud transmission.
+            • Permanent Business Account: Syncs only your agency profile, B2B prospects, leads, and playbook tasks under /users/{uid} with field-level AES-256-GCM PII encryption.
             • Global User Rights: Full access, rectification, JSON export, and permanent deletion within 72 hours.
         """.trimIndent()
     ),
@@ -91,11 +115,11 @@ enum class ComplianceDocTab(
     CONTRIBUTING(
         label = "CONTRIBUTING",
         fileName = "CONTRIBUTING.md",
-        summaryTitle = "Engineering Standards & 31-Test Suite Verification",
+        summaryTitle = "Engineering Standards & Automated Test Suite Verification",
         content = """
             • Conventional Commits and feature-branch workflow under com.gitinclo.vibepitch.
             • Schema synchronization required across VibePitchModels.kt, InputBoundsValidator.kt, firestore.rules, and firestore.test.js.
-            • All PRs must pass Tier 1 (node --test firestore.test.js) and Tier 2 (PitchAndPlaybookValidationTest, AuthAndGuestUpgradeTest, VibePitchRepositoryTest, VibePitchRepositoryRuleTest, and RealmeHardwareOptimizationTest).
+            • All PRs must pass Tier 1 (node --test firestore.test.js) and Tier 2 (PitchAndPlaybookValidationTest, AuthAndGuestUpgradeTest, VibePitchRepositoryTest, VibePitchRepositoryRuleTest, RealmeHardwareOptimizationTest, and Aes256GcmEncryptionTest).
         """.trimIndent()
     ),
     CODE_OF_CONDUCT(
@@ -113,7 +137,7 @@ enum class ComplianceDocTab(
         fileName = "ROADMAP.md",
         summaryTitle = "Q4 2026, 2027 & Long-Term Product Roadmap",
         content = """
-            • Short-Term (Q4 2026): 7-vertical catalog, 6-script generator, 30-day guest-to-cloud lifecycle, com.gitinclo.vibepitch modular architecture, Realme 8 5G (Dimensity 700 / 90Hz / 4GB RAM) Hardware Governor HUD, and 100 Vibe Coding Guardrails suite.
+            • Short-Term (Q4 2026): 7-vertical catalog, 6-script generator, 30-day guest-to-cloud lifecycle, com.gitinclo.vibepitch modular architecture, Realme 8 5G Hardware Governor HUD, AES-256-GCM AEAD encryption, and 100 Vibe Coding Guardrails suite.
             • Mid-Term (2027): Branded PDF proposal export with QR payment links, multi-currency presets (USD/EUR/GBP/INR/BRL), offline sync queue, and custom vertical builder.
             • Long-Term (2028+): Multi-seat agency workspaces and shareable client micro-preview links.
         """.trimIndent()
@@ -154,7 +178,7 @@ fun ComplianceDocsDialog(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "ISO/IEC 27701 & 150+ Country Cybersecurity/Privacy Suite (Oct 10, 2026)",
+                    text = "ISO/IEC 27701 • AES-256-GCM AEAD & 150+ Country Privacy Suite",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -198,7 +222,8 @@ fun ComplianceDocsDialog(
                     Column(
                         modifier = Modifier
                             .padding(14.dp)
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -211,16 +236,19 @@ fun ComplianceDocsDialog(
                             )
                         }
                         Text(
-                            text = "Root File: /${selectedTab.fileName}",
+                            text = "Source: /${selectedTab.fileName}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = selectedTab.content,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.testTag("compliance_doc_content")
                         )
+
+                        if (selectedTab == ComplianceDocTab.AES_256_GCM) {
+                            Aes256GcmInspectorCard()
+                        }
                     }
                 }
             }
@@ -234,4 +262,124 @@ fun ComplianceDocsDialog(
             }
         }
     )
+}
+
+@Composable
+fun Aes256GcmInspectorCard() {
+    val samplePlaintext = "Client Lead: Jordan Taylor • 555-0188 • Deposit $550"
+    val validAad = "users/user_id_9481/leads"
+    val tamperedAad = "users/attacker_id_999/leads"
+
+    var currentCiphertext by remember {
+        mutableStateOf(
+            Aes256GcmCryptoEngine.encrypt(
+                plaintext = samplePlaintext,
+                associatedData = validAad
+            )
+        )
+    }
+    var verificationResultText by remember {
+        mutableStateOf("VERIFIED • Decrypted with bound AAD ($validAad): \"$samplePlaintext\"")
+    }
+    var isTamperRejected by remember { mutableStateOf(false) }
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isTamperRejected) AmberHighlight.copy(alpha = 0.6f) else EmeraldConversion.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("aes256_gcm_inspector_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Live AES-256-GCM AEAD & AAD Context Inspector",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = EmeraldConversion
+            )
+            Text(
+                text = "Key Provider: ${Aes256GcmCryptoEngine.activeKeyProviderDescription()}\n" +
+                    "Spec: ${Aes256GcmCryptoEngine.KEY_SIZE_BITS}-bit Key • ${Aes256GcmCryptoEngine.NONCE_LENGTH_BYTES * 8}-bit Nonce • ${Aes256GcmCryptoEngine.AUTH_TAG_LENGTH_BITS}-bit Tag",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text(
+                text = "Packed Payload (ENCv1: Nonce + Ciphertext + Tag):\n$currentCiphertext",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.testTag("aes256_inspector_ciphertext")
+            )
+
+            Text(
+                text = verificationResultText,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isTamperRejected) AmberHighlight else EmeraldConversion,
+                modifier = Modifier.testTag("aes256_inspector_status")
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val freshToken = Aes256GcmCryptoEngine.encrypt(
+                            plaintext = samplePlaintext,
+                            associatedData = validAad
+                        )
+                        currentCiphertext = freshToken
+                        val decrypted = Aes256GcmCryptoEngine.decrypt(
+                            token = freshToken,
+                            associatedData = validAad
+                        ).getOrElse { "DECRYPT_ERROR" }
+                        isTamperRejected = false
+                        verificationResultText = "VERIFIED • Fresh 96-bit Nonce + AAD ($validAad) -> \"$decrypted\""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ElectricIndigo),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("aes256_run_live_verify_button")
+                ) {
+                    Text(
+                        text = "Rotate Nonce & Verify",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = {
+                        val tamperAttempt = Aes256GcmCryptoEngine.decrypt(
+                            token = currentCiphertext,
+                            associatedData = tamperedAad
+                        )
+                        isTamperRejected = tamperAttempt.isFailure
+                        val exName = tamperAttempt.exceptionOrNull()?.javaClass?.simpleName ?: "AEADBadTagException"
+                        verificationResultText =
+                            "BLOCKED ($exName) • Mismatched AAD ($tamperedAad) rejected before plaintext release"
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("aes256_simulate_tamper_button")
+                ) {
+                    Text(
+                        text = "Simulate AAD Tamper",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
 }

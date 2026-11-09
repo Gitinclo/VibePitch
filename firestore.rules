@@ -58,8 +58,8 @@ service cloud.firestore {
              data.userId is string && data.userId == request.auth.uid &&
              data.agencyName is string && data.agencyName.size() >= 1 && data.agencyName.size() <= 100 &&
              data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 100 &&
-             data.businessEmail is string && data.businessEmail.size() <= 120 &&
-             data.businessPhone is string && data.businessPhone.size() <= 40 &&
+             data.businessEmail is string && data.businessEmail.size() <= 360 &&
+             data.businessPhone is string && data.businessPhone.size() <= 240 &&
              isValidNicheKey(data.primaryNicheKey) &&
              data.websiteUrl is string && data.websiteUrl.size() <= 200 &&
              data.upgradedFromGuest is bool &&
@@ -82,9 +82,9 @@ service cloud.firestore {
              ]) &&
              data.userId is string && data.userId == request.auth.uid &&
              data.businessName is string && data.businessName.size() >= 1 && data.businessName.size() <= 100 &&
-             data.contactName is string && data.contactName.size() <= 100 &&
+             data.contactName is string && data.contactName.size() <= 360 &&
              isValidNicheKey(data.nicheKey) &&
-             data.websiteGapNote is string && data.websiteGapNote.size() <= 300 &&
+             data.websiteGapNote is string && data.websiteGapNote.size() <= 720 &&
              data.brandColorHex is string && data.brandColorHex.size() >= 4 && data.brandColorHex.size() <= 12 &&
              data.tagline is string && data.tagline.size() <= 150 &&
              data.depositPercent is int && data.depositPercent >= 0 && data.depositPercent <= 100 &&
@@ -112,16 +112,16 @@ service cloud.firestore {
              data.prospectId is string && data.prospectId.size() <= 128 &&
              data.prospectBusinessName is string && data.prospectBusinessName.size() >= 1 && data.prospectBusinessName.size() <= 100 &&
              isValidNicheKey(data.nicheKey) &&
-             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
-             data.customerPhone is string && data.customerPhone.size() >= 1 && data.customerPhone.size() <= 40 &&
-             data.customerEmail is string && data.customerEmail.size() <= 120 &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 360 &&
+             data.customerPhone is string && data.customerPhone.size() >= 1 && data.customerPhone.size() <= 240 &&
+             data.customerEmail is string && data.customerEmail.size() <= 360 &&
              data.preferredDate is string && data.preferredDate.size() >= 1 && data.preferredDate.size() <= 80 &&
              data.selectedServiceName is string && data.selectedServiceName.size() >= 1 && data.selectedServiceName.size() <= 120 &&
              data.selectedAddOns is string && data.selectedAddOns.size() <= 300 &&
              data.unitQuantity is int && data.unitQuantity >= 1 && data.unitQuantity <= 100000 &&
              data.estimatedTotal is int && data.estimatedTotal >= 0 && data.estimatedTotal <= 1000000 &&
              data.depositAmount is int && data.depositAmount >= 0 && data.depositAmount <= 1000000 &&
-             data.notes is string && data.notes.size() <= 500 &&
+             data.notes is string && data.notes.size() <= 960 &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }

@@ -12,6 +12,7 @@ import com.gitinclo.vibepitch.data.model.PlaybookTask
 import com.gitinclo.vibepitch.data.model.ProspectProfile
 import com.gitinclo.vibepitch.domain.InputBoundsValidator
 import com.gitinclo.vibepitch.performance.DimensityCpuScheduler
+import com.gitinclo.vibepitch.security.Aes256GcmCryptoEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,8 +103,13 @@ class LocalGuestSessionManager(context: Context) {
     }
 
     fun savePendingBusinessUpgradeDraft(profile: BusinessAccountProfile) {
+        val rawJson = GuestSessionJsonCodec.encodeBusinessProfile(profile)
+        val encrypted = Aes256GcmCryptoEngine.encrypt(
+            plaintext = rawJson,
+            associatedData = buildLocalPrefAad(KEY_PENDING_BUSINESS_PROFILE)
+        )
         prefs.edit()
-            .putString(KEY_PENDING_BUSINESS_PROFILE, GuestSessionJsonCodec.encodeBusinessProfile(profile))
+            .putString(KEY_PENDING_BUSINESS_PROFILE, encrypted)
             .apply()
     }
 
@@ -133,8 +139,12 @@ class LocalGuestSessionManager(context: Context) {
     }
 
     fun getPendingBusinessProfile(userId: String = GUEST_USER_ID): BusinessAccountProfile? {
-        val raw = prefs.getString(KEY_PENDING_BUSINESS_PROFILE, null)
-        return GuestSessionJsonCodec.decodeBusinessProfile(raw, userId)
+        val raw = prefs.getString(KEY_PENDING_BUSINESS_PROFILE, null) ?: return null
+        val decrypted = Aes256GcmCryptoEngine.decryptFieldOrPlaintext(
+            value = raw,
+            associatedData = buildLocalPrefAad(KEY_PENDING_BUSINESS_PROFILE)
+        )
+        return GuestSessionJsonCodec.decodeBusinessProfile(decrypted, userId)
     }
 
     fun consumePendingBusinessUpgradeDraft(userId: String): BusinessAccountProfile? {
@@ -309,35 +319,69 @@ class LocalGuestSessionManager(context: Context) {
         )
     }
 
-    private fun loadProspects(): List<ProspectProfile> =
-        GuestSessionJsonCodec.decodeProspects(prefs.getString(KEY_GUEST_PROSPECTS, null), GUEST_USER_ID)
+    private fun loadProspects(): List<ProspectProfile> {
+        val raw = prefs.getString(KEY_GUEST_PROSPECTS, null)
+        val decrypted = raw?.let {
+            Aes256GcmCryptoEngine.decryptFieldOrPlaintext(it, buildLocalPrefAad(KEY_GUEST_PROSPECTS))
+        }
+        return GuestSessionJsonCodec.decodeProspects(decrypted, GUEST_USER_ID)
+    }
 
     private fun saveProspects(list: List<ProspectProfile>) {
         _guestProspects.value = list
         enqueueUfsWrite {
-            prefs.edit().putString(KEY_GUEST_PROSPECTS, GuestSessionJsonCodec.encodeProspects(list)).apply()
+            val encodedJson = GuestSessionJsonCodec.encodeProspects(list)
+            val encrypted = Aes256GcmCryptoEngine.encrypt(
+                plaintext = encodedJson,
+                associatedData = buildLocalPrefAad(KEY_GUEST_PROSPECTS)
+            )
+            prefs.edit().putString(KEY_GUEST_PROSPECTS, encrypted).apply()
         }
     }
 
-    private fun loadLeads(): List<CapturedLead> =
-        GuestSessionJsonCodec.decodeLeads(prefs.getString(KEY_GUEST_LEADS, null), GUEST_USER_ID)
+    private fun loadLeads(): List<CapturedLead> {
+        val raw = prefs.getString(KEY_GUEST_LEADS, null)
+        val decrypted = raw?.let {
+            Aes256GcmCryptoEngine.decryptFieldOrPlaintext(it, buildLocalPrefAad(KEY_GUEST_LEADS))
+        }
+        return GuestSessionJsonCodec.decodeLeads(decrypted, GUEST_USER_ID)
+    }
 
     private fun saveLeads(list: List<CapturedLead>) {
         _guestLeads.value = list
         enqueueUfsWrite {
-            prefs.edit().putString(KEY_GUEST_LEADS, GuestSessionJsonCodec.encodeLeads(list)).apply()
+            val encodedJson = GuestSessionJsonCodec.encodeLeads(list)
+            val encrypted = Aes256GcmCryptoEngine.encrypt(
+                plaintext = encodedJson,
+                associatedData = buildLocalPrefAad(KEY_GUEST_LEADS)
+            )
+            prefs.edit().putString(KEY_GUEST_LEADS, encrypted).apply()
         }
     }
 
-    private fun loadPlaybookTasks(): List<PlaybookTask> =
-        GuestSessionJsonCodec.decodePlaybookTasks(prefs.getString(KEY_GUEST_PLAYBOOK, null), GUEST_USER_ID)
+    private fun loadPlaybookTasks(): List<PlaybookTask> {
+        val raw = prefs.getString(KEY_GUEST_PLAYBOOK, null)
+        val decrypted = raw?.let {
+            Aes256GcmCryptoEngine.decryptFieldOrPlaintext(it, buildLocalPrefAad(KEY_GUEST_PLAYBOOK))
+        }
+        return GuestSessionJsonCodec.decodePlaybookTasks(decrypted, GUEST_USER_ID)
+    }
 
     private fun savePlaybookTasks(list: List<PlaybookTask>) {
         _guestPlaybook.value = list
         enqueueUfsWrite {
-            prefs.edit().putString(KEY_GUEST_PLAYBOOK, GuestSessionJsonCodec.encodePlaybookTasks(list)).apply()
+            val encodedJson = GuestSessionJsonCodec.encodePlaybookTasks(list)
+            val encrypted = Aes256GcmCryptoEngine.encrypt(
+                plaintext = encodedJson,
+                associatedData = buildLocalPrefAad(KEY_GUEST_PLAYBOOK)
+            )
+            prefs.edit().putString(KEY_GUEST_PLAYBOOK, encrypted).apply()
         }
     }
+
+    fun getRawStoredPreference(key: String): String? = prefs.getString(key, null)
+
+    private fun buildLocalPrefAad(key: String): String = "guest_prefs:$GUEST_USER_ID:$key"
 
     private fun enqueueUfsWrite(block: () -> Unit) {
         DimensityCpuScheduler.incrementUfsQueueDepth()
